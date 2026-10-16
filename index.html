@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小巴2.0 · 工程本体论</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #1a1c20;
+    --surface: #23262d;
+    --sidebar: #17181c;
+    --border: #2e3138;
+    --text: #e2e4e9;
+    --text-dim: #8a8f9e;
+    --user-bg: #2a4a7f;
+    --user-text: #cfe0ff;
+    --bot-bg: #23262d;
+    --accent: #4e8cff;
+    --tag-mat: #2d5a2d;
+    --tag-mat-text: #7fd87f;
+    --tag-mod: #5a3a00;
+    --tag-mod-text: #ffb347;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex; height: 100vh; overflow: hidden; }
+
+  /* ===== Sidebar ===== */
+  #sidebar {
+    width: 260px; flex-shrink: 0; background: var(--sidebar); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; transition: margin-left .2s ease;
+  }
+  #sidebar-header { padding: 14px; border-bottom: 1px solid var(--border); }
+  #new-chat-btn {
+    width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  #new-chat-btn:hover { opacity: .85; }
+  #conv-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 3px; }
+  .conv-item {
+    display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 7px;
+    cursor: pointer; font-size: 13px; color: var(--text-dim); transition: background .12s;
+    position: relative;
+  }
+  .conv-item:hover { background: var(--surface); color: var(--text); }
+  .conv-item.active { background: var(--surface); color: var(--text); }
+  .conv-item.active::before {
+    content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+    background: var(--accent); border-radius: 2px;
+  }
+  .conv-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-del {
+    opacity: 0; flex-shrink: 0; width: 20px; height: 20px; border-radius: 5px; border: none;
+    background: transparent; color: var(--text-dim); cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center; transition: all .12s;
+  }
+  .conv-item:hover .conv-del { opacity: 1; }
+  .conv-del:hover { background: #5a2a2a; color: #ff8080; }
+  #conv-empty { padding: 20px 14px; color: var(--text-dim); font-size: 12.5px; line-height: 1.6; text-align: center; }
+  #sidebar-footer {
+    padding: 10px 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim);
+  }
+  #sidebar-toggle {
+    display: none; position: fixed; top: 12px; left: 12px; z-index: 20; width: 34px; height: 34px;
+    border-radius: 8px; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    cursor: pointer; font-size: 16px; align-items: center; justify-content: center;
+  }
+
+  /* ===== Main column ===== */
+  #main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px; color: #fff; flex-shrink: 0;
+  }
+  .header-info h1 { font-size: 15px; font-weight: 600; }
+  .header-info p { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+  /* Chat area */
+  #chat { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  .bubble-wrap { display: flex; gap: 10px; max-width: 820px; }
+  .bubble-wrap.user { margin-left: auto; flex-direction: row-reverse; }
+
+  .bubble-avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; margin-top: 2px;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+  }
+  .bubble-wrap.user .bubble-avatar { background: var(--user-bg); color: var(--user-text); }
+  .bubble-wrap.bot  .bubble-avatar { background: var(--accent); color: #fff; }
+
+  .bubble {
+    padding: 12px 16px; border-radius: 12px; line-height: 1.65; font-size: 14px;
+    max-width: calc(100% - 42px);
+  }
+  .bubble-wrap.user .bubble { background: var(--user-bg); color: var(--user-text); border-radius: 12px 4px 12px 12px; }
+  .bubble-wrap.bot  .bubble { background: var(--bot-bg); border: 1px solid var(--border); border-radius: 4px 12px 12px 12px; }
+
+  /* Markdown in bubbles */
+  .bubble h2, .bubble h3 { font-size: 14px; font-weight: 700; margin: 12px 0 6px; color: var(--accent); }
+  .bubble p  { margin: 6px 0; }
+  .bubble ul, .bubble ol { margin: 6px 0 6px 20px; }
+  .bubble li { margin: 3px 0; }
+  .bubble code { background: #1a1c20; padding: 1px 5px; border-radius: 4px; font-size: 12px; font-family: 'Consolas', monospace; }
+  .bubble pre  { background: #1a1c20; padding: 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+  .bubble pre code { background: transparent; padding: 0; }
+  .bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; }
+  .bubble th, .bubble td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; }
+  .bubble th { background: #1a1c20; }
+  .bubble strong { color: #d4d8e8; }
+
+  /* Source tags */
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; margin: 0 2px; }
+  .tag-mat { background: var(--tag-mat); color: var(--tag-mat-text); }
+  .tag-mod { background: var(--tag-mod); color: var(--tag-mod-text); }
+
+  /* Typing indicator */
+  .typing .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text-dim); margin: 0 2px; animation: bounce .9s infinite; }
+  .typing .dot:nth-child(2) { animation-delay: .2s; }
+  .typing .dot:nth-child(3) { animation-delay: .4s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+  /* Input area */
+  footer {
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 14px 20px; display: flex; gap: 10px; flex-shrink: 0;
+  }
+  #input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); padding: 10px 14px; font-size: 14px; resize: none; outline: none;
+    font-family: inherit; line-height: 1.5; max-height: 140px; min-height: 44px;
+  }
+  #input:focus { border-color: var(--accent); }
+  #input::placeholder { color: var(--text-dim); }
+  #send {
+    background: var(--accent); border: none; border-radius: 10px; color: #fff;
+    padding: 0 18px; cursor: pointer; font-size: 14px; font-weight: 600; transition: opacity .15s;
+  }
+  #send:hover { opacity: .85; }
+  #send:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* Welcome */
+  #welcome {
+    text-align: center; padding: 40px 20px; color: var(--text-dim);
+  }
+  #welcome .big { font-size: 36px; margin-bottom: 10px; }
+  #welcome h2 { font-size: 20px; color: var(--text); margin-bottom: 8px; }
+  #welcome p { font-size: 14px; line-height: 1.7; max-width: 440px; margin: 0 auto; }
+  .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 20px; }
+  .sug-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 14px; border-radius: 20px; cursor: pointer; font-size: 13px; transition: all .15s;
+  }
+  .sug-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Mobile: collapsible sidebar */
+  @media (max-width: 760px) {
+    #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 15; margin-left: -260px; }
+    #sidebar.open { margin-left: 0; box-shadow: 4px 0 24px rgba(0,0,0,.4); }
+    #sidebar-toggle { display: flex; }
+    header { padding-left: 54px; }
+  }
+</style>
+</head>
+<body>
+
+<button id="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+
+<div id="sidebar">
+  <div id="sidebar-header">
+    <button id="new-chat-btn" onclick="newConversation()">＋ 新对话</button>
+  </div>
+  <div id="conv-list"></div>
+  <div id="sidebar-footer">小巴2.0 · 智谱免费版</div>
+</div>
+
+<div id="main">
+  <header>
+    <div class="avatar">巴</div>
+    <div class="header-info">
+      <h1>小巴2.0 · 工程本体论学习助手</h1>
+      <p>《工程本体论》张东普 · 智谱 GLM-4-Flash（免费版）</p>
+    </div>
+  </header>
+
+  <div id="chat">
+    <div id="welcome">
+      <div class="big">📚</div>
+      <h2>你好，我是小巴</h2>
+      <p>我基于《工程本体论》全书内容，能为你讲解任何概念、术语或章节要点。对话会自动保存，左侧可以随时找回。</p>
+      <div class="suggestions">
+        <button class="sug-btn" onclick="quickAsk('TBox 和 ABox 的核心区别是什么？')">TBox 和 ABox 的区别</button>
+        <button class="sug-btn" onclick="quickAsk('什么是 CQ 驱动设计方法论？')">CQ 驱动设计</button>
+        <button class="sug-btn" onclick="quickAsk('T-Π-O 认知框架是什么？')">T-Π-O 框架</button>
+        <button class="sug-btn" onclick="quickAsk('Palantir 可操作本体的核心创新是什么？')">Palantir 可操作本体</button>
+        <button class="sug-btn" onclick="quickAsk('什么是知识复利？')">知识复利</button>
+        <button class="sug-btn" onclick="quickAsk('NeSy 神经符号 AI 的三种融合模式？')">NeSy 三种融合模式</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <textarea id="input" placeholder="问我任何关于《工程本体论》的问题…" rows="1"
+      onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button id="send" onclick="sendMessage()">发送</button>
+  </footer>
+</div>
+
+<script>
+const API = '/chat';
+let history = [];
+let currentConversationId = null;
+let conversations = [];
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function quickAsk(text) {
+  document.getElementById('input').value = text;
+  sendMessage();
+}
+
+function showWelcome() {
+  const chat = document.getElementById('chat');
+  chat.innerHTML = `
+    <div id="welcome">
+      <div class="big">📚</div>
+      <h2>你好，我是小巴</h2>
+      <p>我基于《工程本体论》全书内容，能为你讲解任何概念、术语或章节要点。对话会自动保存，左侧可以随时找回。</p>
+      <div class="suggestions">
+        <button class="sug-btn" onclick="quickAsk('TBox 和 ABox 的核心区别是什么？')">TBox 和 ABox 的区别</button>
+        <button class="sug-btn" onclick="quickAsk('什么是 CQ 驱动设计方法论？')">CQ 驱动设计</button>
+        <button class="sug-btn" onclick="quickAsk('T-Π-O 认知框架是什么？')">T-Π-O 框架</button>
+        <button class="sug-btn" onclick="quickAsk('Palantir 可操作本体的核心创新是什么？')">Palantir 可操作本体</button>
+        <button class="sug-btn" onclick="quickAsk('什么是知识复利？')">知识复利</button>
+        <button class="sug-btn" onclick="quickAsk('NeSy 神经符号 AI 的三种融合模式？')">NeSy 三种融合模式</button>
+      </div>
+    </div>`;
+}
+
+function newConversation() {
+  currentConversationId = null;
+  history = [];
+  showWelcome();
+  highlightActiveConv(null);
+  if (window.innerWidth <= 760) document.getElementById('sidebar').classList.remove('open');
+}
+
+function renderBubble(role, text) {
+  const chat = document.getElementById('chat');
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+
+  const wrap = document.createElement('div');
+  wrap.className = `bubble-wrap ${role}`;
+
+  const av = document.createElement('div');
+  av.className = 'bubble-avatar';
+  av.textContent = role === 'user' ? '我' : '巴';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+
+  if (role === 'bot') {
+    const tagged = text
+      .replace(/\[材料依据\]/g, '<span class="tag tag-mat">[材料依据]</span>')
+      .replace(/\[材料未覆盖\]/g, '<span class="tag tag-mod">[材料未覆盖]</span>')
+      .replace(/\[模型补充\]/g, '<span class="tag tag-mod">[模型补充]</span>');
+    bubble.innerHTML = marked.parse(tagged);
+  } else {
+    bubble.textContent = text;
+  }
+
+  wrap.appendChild(av);
+  wrap.appendChild(bubble);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+  return bubble;
+}
+
+function addTyping() {
+  const chat = document.getElementById('chat');
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'bubble-wrap bot';
+  wrap.id = 'typing-indicator';
+
+  const av = document.createElement('div');
+  av.className = 'bubble-avatar';
+  av.textContent = '巴';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble typing';
+  bubble.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+
+  wrap.appendChild(av);
+  wrap.appendChild(bubble);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('input');
+  const send = document.getElementById('send');
+  const msg = input.value.trim();
+  if (!msg || send.disabled) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  send.disabled = true;
+
+  renderBubble('user', msg);
+  addTyping();
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history, conversation_id: currentConversationId }),
+    });
+
+    const data = await res.json();
+    document.getElementById('typing-indicator')?.remove();
+
+    if (!res.ok) {
+      renderBubble('bot', `⚠️ 错误：${data.detail || '请求失败'}`);
+    } else {
+      renderBubble('bot', data.reply);
+      history.push({ role: 'user', text: msg });
+      history.push({ role: 'assistant', text: data.reply });
+      if (history.length > 20) history = history.slice(-20);
+
+      if (data.conversation_id) {
+        currentConversationId = data.conversation_id;
+        if (data.is_new) {
+          await loadConversations();
+        } else {
+          // 把当前对话提到列表顶部（最近更新）
+          touchLocalOrder(currentConversationId);
+        }
+      }
+    }
+  } catch (e) {
+    document.getElementById('typing-indicator')?.remove();
+    renderBubble('bot', `⚠️ 网络错误：${e.message}`);
+  }
+
+  send.disabled = false;
+  input.focus();
+}
+
+// ===== 对话列表 =====
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+}
+
+function renderConvList() {
+  const list = document.getElementById('conv-list');
+  if (!conversations.length) {
+    list.innerHTML = '<div id="conv-empty">还没有保存的对话<br>开始提问后会自动出现在这里</div>';
+    return;
+  }
+  list.innerHTML = '';
+  for (const c of conversations) {
+    const item = document.createElement('div');
+    item.className = 'conv-item' + (c.id === currentConversationId ? ' active' : '');
+    item.onclick = () => selectConversation(c.id);
+
+    const title = document.createElement('div');
+    title.className = 'conv-title';
+    title.textContent = c.title || '新对话';
+    title.title = `${c.title || '新对话'} · ${fmtTime(c.updated_at)}`;
+
+    const del = document.createElement('button');
+    del.className = 'conv-del';
+    del.textContent = '✕';
+    del.onclick = (e) => { e.stopPropagation(); deleteConversation(c.id); };
+
+    item.appendChild(title);
+    item.appendChild(del);
+    list.appendChild(item);
+  }
+}
+
+function highlightActiveConv(id) {
+  document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
+  renderConvList();
+}
+
+function touchLocalOrder(id) {
+  const idx = conversations.findIndex(c => c.id === id);
+  if (idx > 0) {
+    const [c] = conversations.splice(idx, 1);
+    c.updated_at = new Date().toISOString();
+    conversations.unshift(c);
+  }
+  renderConvList();
+}
+
+async function loadConversations() {
+  try {
+    const res = await fetch('/api/conversations');
+    if (!res.ok) { conversations = []; renderConvList(); return; }
+    conversations = await res.json();
+    renderConvList();
+  } catch (e) {
+    conversations = [];
+    renderConvList();
+  }
+}
+
+async function selectConversation(id) {
+  if (id === currentConversationId) return;
+  currentConversationId = id;
+  highlightActiveConv(id);
+  if (window.innerWidth <= 760) document.getElementById('sidebar').classList.remove('open');
+
+  const chat = document.getElementById('chat');
+  chat.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:30px;font-size:13px;">加载中…</div>';
+
+  try {
+    const res = await fetch(`/api/conversations/${id}/messages`);
+    const msgs = await res.json();
+    chat.innerHTML = '';
+    history = [];
+    for (const m of msgs) {
+      renderBubble(m.role === 'user' ? 'user' : 'bot', m.content);
+      history.push({ role: m.role, text: m.content });
+    }
+    if (history.length > 20) history = history.slice(-20);
+  } catch (e) {
+    chat.innerHTML = '';
+    renderBubble('bot', `⚠️ 读取对话失败：${e.message}`);
+  }
+}
+
+async function deleteConversation(id) {
+  if (!confirm('删除这段对话？此操作无法撤销。')) return;
+  try {
+    await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
+  } catch (e) { /* ignore */ }
+  conversations = conversations.filter(c => c.id !== id);
+  renderConvList();
+  if (id === currentConversationId) newConversation();
+}
+
+// ===== 初始化 =====
+loadConversations();
+</script>
+</body>
+</html>

@@ -1,0 +1,812 @@
+{
+  "schemaVersion": "4.3",
+  "meta": {
+    "title": "工程本体论",
+    "creator": "张东普",
+    "sourceType": "document",
+    "mode": "overview",
+    "pageId": "engineering-ontology-zhang-dongpu-2026",
+    "learningDepth": "quick",
+    "language": "zh-CN",
+    "initialTheme": "warm-paper",
+    "knowledgeBase": "INDEX.md"
+  },
+  "hero": {
+    "eyebrow": "工程本体论 · 快速导读",
+    "title": "让机器真正理解工程世界",
+    "lede": "本书系统阐述如何用形式化本体表达工程领域知识，并在AI时代将其升级为可推理、可执行、持续演化的「工程世界模型」，成为连接大语言模型与物理现实的语义基础设施。",
+    "thesis": "工程本体不是知识管理工具，而是AI时代连接现实世界、语言模型与智能执行系统的统一语义中枢——其核心价值在于：统一语义、可解释推理、知识复利。"
+  },
+  "frameworks": [
+    {
+      "id": "fw-5layer",
+      "name": "五层本体架构（TBox+RBox+ABox+CQ+Agent）",
+      "oneLine": "TBox（概念类层次）+ RBox（关系与SWRL规则）+ ABox（实例断言）+ CQ（能力问题）+ Agent（执行），五层共同构成可查询、可推理、可执行的工程知识系统。",
+      "when": "设计工程本体整体结构时，明确每层职责与相互关系。",
+      "firstUnitId": "u01",
+      "sourceOrder": 1,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "fw-cq",
+      "name": "CQ驱动设计方法论",
+      "oneLine": "先写出「系统必须能回答哪些具体业务问题」（能力问题），再反推本体所需的概念、关系和实例范围，避免盲目建模。",
+      "when": "启动本体建设项目、确定建模范围、防止过度工程化时使用。",
+      "firstUnitId": "u01",
+      "sourceOrder": 2,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "fw-owl2",
+      "name": "OWL2+描述逻辑形式化体系",
+      "oneLine": "以描述逻辑（DL）为形式基础，通过OWL2（DL/EL/QL/RL四个子语言）+ RDFS + SPARQL + SWRL + SHACL，构建可自动推理的工程知识表示。",
+      "when": "需要对本体进行一致性校验、类归属推导、SPARQL查询或SWRL规则推理时使用。",
+      "firstUnitId": "u02",
+      "sourceOrder": 3,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第二部分 技术体系（第4-5章）· 第1段"
+    },
+    {
+      "id": "fw-dynamic",
+      "name": "动态本体与语义动力学",
+      "oneLine": "在静态TBox+ABox基础上引入状态（State）、事件（Event）、转化（Transition）、动作（Action）四要素，用「二阶语义动力学方程」刻画概念语义在时间上的演化。",
+      "when": "建模工程系统随时间演变的行为（如设备状态变化、工艺流程转化）时使用。",
+      "firstUnitId": "u03",
+      "sourceOrder": 4,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+    },
+    {
+      "id": "fw-nesy",
+      "name": "神经符号AI（NeSy）融合范式",
+      "oneLine": "神经网络（感知/语言/模式识别）与符号本体（推理/约束/知识结构化）协同：LLM负责语言理解，本体负责世界模型与语义核准，Agent负责行动。",
+      "when": "评估LLM+本体混合系统架构、理解AI幻觉问题的本质解法时使用。",
+      "firstUnitId": "u03",
+      "sourceOrder": 5,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+    },
+    {
+      "id": "fw-compiler",
+      "name": "本体编译器（Ontology Compiler）",
+      "oneLine": "企业文档 → LLM语义理解 → 实体/关系候选抽取 → 专家审核 → 形式化落地 → 持续演化，将非结构化知识自动编译为可计算本体。",
+      "when": "大规模构建或持续维护企业级本体，解决人工建模效率瓶颈时使用。",
+      "firstUnitId": "u03",
+      "sourceOrder": 6,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+    },
+    {
+      "id": "fw-palantir",
+      "name": "Palantir三层可操作本体架构",
+      "oneLine": "语义层（Object+Link，对应TBox/RBox静态部分）+ 动能层（Action实时写回，对应ABox动态部分）+ 动态层（Rules+SHACL+版本控制），LLM只能通过预定义Action操作本体，不直接访问底层数据库。",
+      "when": "设计企业级AI平台时，理解「如何让LLM安全可控地操作业务系统」的工程解法。",
+      "firstUnitId": "u04",
+      "sourceOrder": 7,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+    },
+    {
+      "id": "fw-odd",
+      "name": "本体驱动开发（ODD）",
+      "oneLine": "业务知识从代码中解耦，显式沉淀为本体（TBox/RBox/ABox）；新规则通过更新RBox实现，新数据通过更新ABox接入，新Agent共享同一本体，无需重新建知识体系。",
+      "when": "对比「代码驱动」vs「本体驱动」两种开发范式；评估是否采用本体架构时使用。",
+      "firstUnitId": "u04",
+      "sourceOrder": 8,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+    },
+    {
+      "id": "fw-knowledge-compounding",
+      "name": "知识复利（Knowledge Compounding）",
+      "oneLine": "每一次本体演化（T积累结构认知）、投影打磨（Π积累方法论）、观测沉淀（O积累历史轨迹）都构成可持续增值的知识资产；时间越长，优势越不可复制。",
+      "when": "评估本体建设的长期战略价值、对抗竞争对手「从零复制」的护城河分析时使用。",
+      "firstUnitId": "u04",
+      "sourceOrder": 9,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+    },
+    {
+      "id": "fw-tpo",
+      "name": "T-Π-O 认知框架",
+      "oneLine": "Truth（客观现实）→ Π（投影映射：本体+推理引擎）→ Observation（可观测断言），三者构成持续自校正的认知闭环。",
+      "when": "理解「本体在做什么」、评价本体系统准确性、设计可计算本体与世界模型时使用。",
+      "firstUnitId": "u06",
+      "sourceOrder": 10,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    },
+    {
+      "id": "fw-co",
+      "name": "可计算本体七要素（CO）",
+      "oneLine": "Entity（有什么）+ Attribute（当前状态）+ Relation（如何连接）+ Constraint（允许怎样变化）+ Process（如何演化）+ Logic（推导规则）+ Interaction（如何改变世界），共同构成「理解—推理—执行」完整智能回路。",
+      "when": "设计物理AI、机器人、工业智能系统时，确保AI决策符合物理规律与安全约束。",
+      "firstUnitId": "u06",
+      "sourceOrder": 11,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    },
+    {
+      "id": "fw-worldmodel",
+      "name": "工程世界模型",
+      "oneLine": "世界模型 = 工程本体（结构）+ 数据（现实状态）+ 仿真（未来演化）+ 推理（决策能力）。区别于语言模型（学语言空间）与知识图谱（静态关系），世界模型回答「如何变化」和「行动后果」。",
+      "when": "判断AI系统能否在真实世界可靠行动的根本性标准；未来企业竞争力的核心。",
+      "firstUnitId": "u06",
+      "sourceOrder": 12,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    }
+  ],
+  "contentUnits": [
+    {
+      "id": "u01",
+      "label": "第一部分：第1-3章",
+      "title": "基础理论与设计方法论",
+      "core": "工程本体是「对工程领域知识的形式化、可计算表达」；设计应以CQ驱动、从中间层稳定概念出发（Middle-Out策略），分五层（TBox+RBox+ABox+CQ+Agent）逐步构建。",
+      "frameworks": ["五层本体架构（TBox+RBox+ABox+CQ+Agent）", "CQ驱动设计方法论"],
+      "takeaways": [
+        "本体不是数据库，不是知识图谱，不是文档系统——它是具备逻辑推理能力的形式化知识结构。",
+        "CQ是「系统必须能回答的具体业务问题」，是本体设计的需求规格说明书，而非功能模块的描述（如「实现设备管理」）。",
+        "Middle-Out策略：从中间层稳定概念入手（如「设备」「工艺」），向上抽象、向下具化，避免从顶层概念或底层数据推导建模。",
+        "TBox定义「类型知识」（概念）；ABox保存「事实知识」（实例）——二者的根本区别是工程本体理解的基础。"
+      ],
+      "conclusions": [
+        {
+          "title": "工程本体的五层架构职责分工",
+          "summary": "五层各司其职，共同构成从知识定义到智能执行的完整体系。",
+          "points": [
+            "TBox（术语盒）：类层次 + 属性定义 + 公理约束，定义「世界可能有什么」。",
+            "RBox（关系盒）：对象属性 + SWRL规则 + 属性特征（传递性、对称性等），定义「实体之间如何关联及推理」。",
+            "ABox（断言盒）：具体实例 + 属性值 + 关系断言，定义「这个世界此刻实际是什么样子」。",
+            "CQ（能力问题）：本体范围需求说明，每个CQ映射到TBox/RBox/ABox的具体建模要求。",
+            "Agent（执行层）：将推理结论转化为实际业务系统操作的执行接口。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+        },
+        {
+          "title": "正确的CQ与错误的CQ区分",
+          "summary": "CQ必须是可判断对错的具体查询，而非功能模块或系统需求描述。",
+          "points": [
+            "正确的CQ示例：「哪些设备能够加工7075铝合金？」「目前有哪些设备处于空闲状态且支持五轴加工？」",
+            "错误的CQ示例：「实现设备管理」「支持工艺路线查询」——这些是功能需求，不是知识边界问题。",
+            "区分方法：CQ必须能产生一个具体答案集合，且其答案需要依赖本体中的类、关系和实例才能推导出来。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+        }
+      ],
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "u02",
+      "label": "第二部分：第4-5章",
+      "title": "技术体系：语义网标准栈与推理引擎",
+      "core": "工程本体基于W3C语义网标准栈（RDF/RDFS/OWL2/SPARQL/SWRL/SHACL）构建形式化表示；推理引擎（HermiT/Pellet）通过Tableau算法完成一致性校验和类归属推导；SWRL规则扩展OWL2推理能力至业务逻辑。",
+      "frameworks": ["OWL2+描述逻辑形式化体系"],
+      "takeaways": [
+        "OWL2四个子语言：DL（最强表达力，支持完整描述逻辑推理）、EL（多项式复杂度，适合大型医疗/基因本体）、QL（支持数据库查询重写）、RL（适合规则引擎实现）。",
+        "SWRL规则格式：Antecedent（前件）→ Consequent（后件），IF条件THEN结论，能表达OWL2 DL单独无法捕捉的跨类条件推理。",
+        "Allen时间区间代数的13种时序关系（before/after/meets/overlaps等），用于建模工序先后顺序、任务时间冲突检测。",
+        "SHACL约束：验证ABox实例数据是否符合模式规范（不同于OWL推理验证逻辑一致性）。"
+      ],
+      "conclusions": [
+        {
+          "title": "推理机制选型",
+          "summary": "不同推理任务对应不同技术路线，正确选型决定性能与能力边界。",
+          "points": [
+            "一致性校验（Consistency Checking）：检测本体是否存在逻辑矛盾，使用Tableau算法，适合建模完成后验证。",
+            "类归属推导（Classification）：推导哪些实例属于哪些类，从ABox实例自动发现隐含类成员关系。",
+            "SWRL规则推理：前向链式推理，从已知事实触发规则，生成新断言——适合捕捉业务逻辑规则（如「设备连续运行>8h → 预警」）。",
+            "推理性能优化：模块化本体（只加载相关子模块）、懒加载推理（按需触发）、增量推理（仅重算变更部分）三种主要策略。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第二部分 技术体系（第4-5章）· 第1段"
+        }
+      ],
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第二部分 技术体系（第4-5章）· 第1段"
+    },
+    {
+      "id": "u03",
+      "label": "第三部分：第6-8章",
+      "title": "应用实践与AI时代新理论",
+      "core": "工程本体在智能制造、自动驾驶、智能电网、BIM合规审查、航空FMEA五大领域有成熟落地路径；AI时代新增神经符号融合（NeSy）、动态本体语义动力学、Agent本体、本体编译器等核心理论扩展。",
+      "frameworks": ["动态本体与语义动力学", "神经符号AI（NeSy）融合范式", "本体编译器（Ontology Compiler）"],
+      "takeaways": [
+        "五个应用案例的共同规律：工程本体提供「领域约束+状态空间」，AI提供「感知+优化」，两者结合使系统既可解释又可执行。",
+        "动态本体核心公式：M(S)·d²S/dt² + η·dS/dt = F(S) − ∇E(S)，语义质量M决定概念惯性，势能梯度∇E(S)表示向稳定态的引力，驱动力F(S)来自新证据输入。",
+        "Agent本体 = Identity（身份）+ Goal（目标）+ Belief（知识状态）+ Memory（记忆）+ Skill（能力）+ Action（动作）+ Permission（权限）+ Constraint（约束），构成「数字人格」。",
+        "本体编译器解决的核心问题：把工程师脑中隐性知识、散落文档中的经验，自动「编译」为机器可推理的本体结构——LLM负责生成候选，专家负责核准。"
+      ],
+      "conclusions": [
+        {
+          "title": "神经符号AI（NeSy）的三种融合模式",
+          "summary": "神经网络的感知能力与符号本体的推理能力可以以不同深度结合，各有适用场景与能力边界。",
+          "points": [
+            "流水线模式（Pipeline）：神经网络输出 → 本体验证/约束 → 结果，松耦合，实施简单，适合快速落地。",
+            "并行模式（Parallel）：神经网络推断与本体推理同步进行，结果加权融合，兼顾感知准确率与逻辑一致性。",
+            "深度融合模式（Deep）：本体约束嵌入神经网络训练过程（物理信息神经网络PINN即属此类），推断结果天然满足领域约束，最强但实施最复杂。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+        },
+        {
+          "title": "动态本体的四类核心建模元素",
+          "summary": "要让本体刻画「世界如何变化」，必须在静态TBox基础上引入动力学要素。",
+          "points": [
+            "State（状态）：某时刻下ABox中的完整断言集合快照，如Equipment(M500)当前hasStatus(Running)。",
+            "Event（事件）：触发状态转化的外部或内部信号，如「温度超过阈值」「订单到达」。",
+            "Transition（转化规则）：定义什么Event在什么前置State下触发什么后继State——是本体「行为语义」的核心。",
+            "Action（动作）：Agent主动施加于世界的操作，执行后改变ABox状态，构成知识闭环的「写入端」。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+        }
+      ],
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+    },
+    {
+      "id": "u04",
+      "label": "第四部分：第9章",
+      "title": "AI时代工程本体开发全流程",
+      "core": "AI辅助工程本体建设的完整流程：CQ方法论驱动范围 → LLM辅助TBox/RBox/ABox构建 → 本体+LLM+Agent协同推理（3个制造业案例）→ 持续演化机制（Living Ontology）→ 本体成为AI时代新基础设施。",
+      "frameworks": ["CQ驱动设计方法论", "本体编译器（Ontology Compiler）", "Palantir三层可操作本体架构", "本体驱动开发（ODD）", "知识复利（Knowledge Compounding）"],
+      "takeaways": [
+        "AI辅助TBox：LLM从文档中抽取候选实体和层次，专家审核——「LLM生成初稿，专家确认黄金标准」，效率提升但专家评审不可省略。",
+        "AI辅助RBox：LLM不仅能发现显性关系，更能从历史数据中挖掘「隐藏规则」（如「五轴机床通常加工航空件」），将原本锁在专家脑中的隐性知识显性化。",
+        "ABox是「现实世界数字镜像」：必须实时更新，才能支持多Agent协同决策；静态ABox是「数字化石」，无法支撑动态推理。",
+        "多Agent协同架构的正确解法：所有Agent共享同一本体作为语义层（Shared Semantic Layer），而非点对点通信——本体是Agent间的「共同语言」。",
+        "LLM幻觉的本质解法：LLM不直接访问数据库，而是访问本体——本体提供结构化、带上下文的Object（名词）和预定义的Action（动词），LLM只在这个安全边界内推理。"
+      ],
+      "conclusions": [
+        {
+          "title": "「理解—推理—执行—反馈」智能闭环",
+          "summary": "工程本体让AI系统从「知识管理」升级为「智能决策」的完整闭环机制。",
+          "points": [
+            "自然语言需求 → LLM解析意图 → 本体定位语义（概念+关系+约束）→ 规则引擎推理判断 → Agent制定执行方案 → 业务系统执行 → 结果写回ABox → 新一轮循环。",
+            "三者分工不可替代：LLM处理语言模糊性，本体提供精确语义锚点（防止幻觉），Agent+业务系统完成实际执行。",
+            "「本体驱动」vs「代码驱动」根本差异：业务规则沉淀在本体（TBox/RBox）中，而非散落在各系统的if-else代码里；规则变化只需更新RBox，无需重新开发。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+        },
+        {
+          "title": "三个制造业协同推理案例",
+          "summary": "展示本体+LLM+Agent如何协作解决实际工厂问题，体现「可解释推理」的工程价值。",
+          "points": [
+            "设备能力匹配：订单需求→本体定位五轴能力→查询ABox空闲设备→推荐M520，并给出「可解释原因」（材料、能力、状态、历史相似度）。",
+            "工艺智能推荐：新产品无工艺→LLM提取特征→本体相似度检索历史产品（96%相似）→规则引擎校验设备可用性→推荐有据可查的工艺路线。",
+            "排产冲突检测：时间重叠+设备相同→本体推理「时间冲突」→自动寻找替代设备→建议将O1002调整至M520（减少等待120分钟）。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+        },
+        {
+          "title": "工程本体的持续演化机制",
+          "summary": "本体不是一次性交付的项目产物，而是需要持续演化的知识资产。",
+          "points": [
+            "演化闭环：业务变化 → LLM自动发现新知识（候选本体更新）→ 专家审核 → 本体版本升级 → Agent重新学习 → 持续运行。",
+            "版本管理：借鉴软件SemVer，每次更新自动执行一致性检查+规则验证+CQ回归测试+Agent回归测试。",
+            "知识复利的实质：不是「代码越积越多」，而是「世界结构认知越来越精准（T积累）+ 投影方法越来越娴熟（Π积累）+ 历史观测越来越丰富（O积累）」。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+        }
+      ],
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+    },
+    {
+      "id": "u05",
+      "label": "第五部分：第10章",
+      "title": "Palantir企业AI本体架构：工程化落地典范",
+      "core": "Palantir Foundry以「可操作本体（Operational Ontology）」为核心，通过语义层+动能层+动态层三层架构，以及Object（名词）+Action（动词）结构，实现大语言模型与底层业务系统的安全解耦；FDE模式是软件平台+现场铁骑的护城河机制。",
+      "frameworks": ["Palantir三层可操作本体架构", "本体驱动开发（ODD）"],
+      "takeaways": [
+        "「可操作本体」的核心创新：本体不仅描述世界（名词/Object），还封装「被允许的改变世界的操作」（动词/Action）——LLM只能调用预定义Action，不能直接操作数据库。",
+        "Palantir vs 传统知识图谱：知识图谱只读，Palantir可读可写可执行可审计；本质差异是面向「操作与闭环执行」而非「信息关联与查询」。",
+        "大模型网关（OAG vs RAG）：RAG把文本片段喂给模型；OAG把结构化Object+Action作为LLM的语义边界——提供上下文的同时约束行为边界。",
+        "FDE（前沿部署工程师）的价值：既懂工程能力边界又懂具体业务场景风险点的复合型人才驻场，是「技术平台能力×领域业务知识」的乘法效应，软件功能可以被竞争对手复制，而长期积累的领域本体知识不能。"
+      ],
+      "conclusions": [
+        {
+          "title": "四大核心组件的系统协作",
+          "summary": "Object+Link+Action+Interfaces&Rules共同构成企业智能系统的语义基础设施。",
+          "points": [
+            "Object Types（名词）：全局唯一ID的业务实体，屏蔽多源异构系统的底层表结构差异，为LLM提供清晰无歧义的输入。",
+            "Link Types（逻辑关系）：显式建模业务关系链，支持多跳探索（告警→设备→产线→工程师），LLM沿Link导航无需写SQL。",
+            "Action Types（动词）：定义可执行业务操作的五个工程维度：可配置、可约束、可审计、可写回、可被AI调用；LLM的「工具箱」只包含经过安全审计的Action。",
+            "Interfaces & Rules（契约与护栏）：SHACL约束固化硬性业务规则，违反规则的AI操作被自动拦截；大模型可插拔更换（Claude↔GPT↔开源模型），本体内核不变。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第五部分 Palantir企业AI（第10章）· 第1段"
+        },
+        {
+          "title": "FDE落地步骤（六步法）",
+          "summary": "Palantir本体从零到一的标准实施路径，体现「业务优先、敏捷演化」原则。",
+          "points": [
+            "① 业务域梳理：确定核心Object边界（对应CQ范围界定）。",
+            "② 对象与关系定义：建立语义骨架（TBox）。",
+            "③ 数据源映射：将ERP/IoT等数据动态绑定到Object（对应ABox自动构建）。",
+            "④ 动作与规则配置：封装Action Type动词（可操作本体特有步骤）。",
+            "⑤ 权限与治理：配置细粒度安全策略。",
+            "⑥ AI与应用构建：接入LLM网关和Workshop低代码工具。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第五部分 Palantir企业AI（第10章）· 第1段"
+        }
+      ],
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第五部分 Palantir企业AI（第10章）· 第1段"
+    },
+    {
+      "id": "u06",
+      "label": "第六部分：第11-12章",
+      "title": "可计算本体与工程世界模型：AI理解现实的新基础",
+      "core": "可计算本体（CO）是工程本体在物理AI场景下的扩展（7要素），T-Π-O是贯穿全书的统一认知框架；工程世界模型（本体+数据+仿真+推理）标志AI从「预测型」跨入「世界模型型」，知识复利是时间维度的竞争壁垒。",
+      "frameworks": ["T-Π-O 认知框架", "可计算本体七要素（CO）", "工程世界模型", "知识复利（Knowledge Compounding）"],
+      "takeaways": [
+        "CO的出现有三个时代条件：① AI Agent成为新的软件消费者（需要明确语义边界）；② LLM大幅降低本体构建成本；③ 物理AI需要语义安全层（能量守恒等物理约束不可被LLM绕过）。",
+        "「LLM是大脑，但不是世界模型」：LLM学习的是语言空间的概率结构，不是现实世界的因果结构——世界模型才是让AI从「生成答案」变为「理解推理行动」的关键跃迁。",
+        "个人本体（Personal Ontology）= Knowledge + Skill + Experience + Decision + Action，将个人隐性知识结构化为可被AI Agent执行的「数字劳动力」——支撑OPC（一人公司）的实质是个人可计算本体，而非聊天机器人。",
+        "T-mind对AI而言也是外部世界：对AI来说，人类心智与物理世界具有同等的「外在性」，个人本体建模与物理世界本体建模在T-Π-O元逻辑上完全统一。",
+        "工程软件演进方向：从「大而全」一体化平台 → 功能Agent拆解 → 本体语义调度（Solver Orchestration），工业软件的核心竞争力从「求解精度」转向「能否接入企业本体调度体系」。"
+      ],
+      "conclusions": [
+        {
+          "title": "T-Π-O框架的三层含义",
+          "summary": "T-Π-O是理解「本体在认知过程中扮演什么角色」的统一语言。",
+          "points": [
+            "T（Truth，客观本源）：独立于认知主体而存在的现实世界结构——真实的设备、真实的压力场、真实的物理规律，以及（对AI而言）真实的人类心智（T-mind）。",
+            "Π（Projection，投影映射）：工程本体（TBox+RBox）+ 推理引擎（EM）共同构成Π，决定「如何将T投影为可计算的预测结果」——求解器、规则推理、相似度匹配都是Π的不同实现。",
+            "O（Observation，观测成果）：现实中实际发生的状态（ABox实例数据）——既是校验Π预测准确性的基准，也是反向驱动Π优化的原材料；O持续积累构成企业独有的历史观测资产。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+        },
+        {
+          "title": "AI能力进化的五个台阶",
+          "summary": "通往「机器真正理解世界」的完整路径图，每个台阶缺失都会导致不同的能力瓶颈。",
+          "points": [
+            "① 语言模型：机器「学会表达」——流畅处理自然语言，但不理解语言背后的现实结构。",
+            "② 工程本体：机器「学会理解」——把语言指涉的现实转化为可精确推理的概念+关系+约束。",
+            "③ 世界模型：机器「认识世界」——不仅知道世界「是什么」，还能推演世界「将会如何变化」。",
+            "④ 智能体（Agent）：机器「改变世界」——将理解与预测转化为对现实世界的实际操作。",
+            "⑤ 物理AI：机器「进入现实世界」——真实传感器+真实执行体，在物理约束中持续运作。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+        },
+        {
+          "title": "知识复利的三条积累线索",
+          "summary": "T、Π、O三者共同积累，构成外部难以复制的企业Know-how壁垒。",
+          "points": [
+            "T积累（结构认知积累）：设备迭代、新工艺出现、新因果关系浮现——每次更新都让本体对现实世界的刻画更精准。",
+            "Π积累（方法论积累）：哪种求解器在哪类工况下更准确、哪种匹配策略在哪类特征上更有效——每次O反馈都在打磨投影方法本身。",
+            "O积累（历史观测积累）：哪种设备状态组合历史上实际导致过故障、哪种参数设置实际产生过高良率——时间越长，独属于企业的历史轨迹越不可替代。"
+          ],
+          "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+        }
+      ],
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    }
+  ],
+  "glossary": [
+    {
+      "id": "tbox",
+      "term": "TBox",
+      "fullName": "Terminology Box",
+      "zhMeaning": "术语盒/概念层",
+      "category": "英文缩写",
+      "definition": "本体的「类型知识」层，定义领域中存在哪些概念类（如Equipment、Product）、它们的属性（如hasStatus）、层次关系（如FiveAxisMachine是Equipment的子类）以及约束公理。",
+      "context": "TBox知道「设备」这个类的定义，但不知道车间里具体有哪台设备——那是ABox的工作。",
+      "related": ["ABox", "RBox", "描述逻辑（DL）"],
+      "units": ["u01", "u02"],
+      "firstUnitId": "u01",
+      "sourceOrder": 1,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "abox",
+      "term": "ABox",
+      "fullName": "Assertion Box",
+      "zhMeaning": "断言盒/实例层",
+      "category": "英文缩写",
+      "definition": "本体的「事实知识」层，存储现实世界中具体实例的断言：Equipment(M500)、hasStatus(Running)、processing(Product_P1001)。是本体「连接现实世界」的唯一层次，也是AI Agent的共享工作记忆。",
+      "context": "ABox需要实时更新才能成为「现实世界数字镜像」；静态ABox会导致本体脱离现实成为「数字化石」。",
+      "related": ["TBox", "RBox", "数字孪生"],
+      "units": ["u01", "u04"],
+      "firstUnitId": "u01",
+      "sourceOrder": 2,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "rbox",
+      "term": "RBox",
+      "fullName": "Role Box / Relation Box",
+      "zhMeaning": "关系盒",
+      "category": "英文缩写",
+      "definition": "定义本体中实体间关系的属性特征（传递性、对称性、函数性）、基数约束（每台设备至多有一个主负责人）和SWRL推理规则。也是多Agent系统共享的「语义纽带」——各Agent共享RBox中的关系定义。",
+      "context": "RBox不仅连接知识，更连接AI Agent：Planning/Scheduling/Maintenance/Quality四个Agent通过共享RBox中的requiresProcess/assignedTo/hasFailureMode/causedBy实现协同。",
+      "related": ["TBox", "ABox", "SWRL"],
+      "units": ["u01", "u04"],
+      "firstUnitId": "u01",
+      "sourceOrder": 3,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "cq",
+      "term": "CQ",
+      "fullName": "Competency Question",
+      "zhMeaning": "能力问题/胜任力问题",
+      "category": "英文缩写",
+      "definition": "本体必须能够回答的具体业务查询。CQ是本体范围的「需求规格说明书」：每个CQ映射到TBox/RBox/ABox的具体建模要求，用于判断本体是否足够完整。",
+      "context": "「哪些设备能加工铝合金？」是正确的CQ；「实现设备管理」不是CQ而是功能需求描述。CQ在AI时代可由LLM辅助自动生成候选列表。",
+      "related": ["TBox", "ABox", "CQ驱动设计方法论"],
+      "units": ["u01", "u04"],
+      "firstUnitId": "u01",
+      "sourceOrder": 4,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "owl2",
+      "term": "OWL 2",
+      "fullName": "Web Ontology Language 2",
+      "zhMeaning": "网络本体语言2",
+      "category": "英文缩写",
+      "definition": "W3C推荐的本体建模语言，基于描述逻辑（DL），提供四个子语言：DL（最强表达力）、EL（高效推理）、QL（数据库查询优化）、RL（规则引擎）。主流工具：Protégé建模，HermiT/Pellet推理。",
+      "context": "OWL2 DL支持类的交并补、属性限制（AllValuesFrom/SomeValuesFrom）、基数约束、对称/传递/逆等属性特征，是工程本体形式化表达的核心标准。",
+      "related": ["RDFS", "SPARQL", "SWRL", "描述逻辑（DL）"],
+      "units": ["u02"],
+      "firstUnitId": "u02",
+      "sourceOrder": 5,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第二部分 技术体系（第4-5章）· 第1段"
+    },
+    {
+      "id": "swrl",
+      "term": "SWRL",
+      "fullName": "Semantic Web Rule Language",
+      "zhMeaning": "语义网规则语言",
+      "category": "英文缩写",
+      "definition": "在OWL2基础上扩展If-Then规则能力的语言：Antecedent（前件条件）→ Consequent（后件结论）。可以表达OWL2 DL单独无法捕捉的跨类条件推理，如「设备连续运行时长>8小时 → 具有加工精度风险」。",
+      "context": "SWRL规则只适用于可以预先明确条件的确定性业务规则；对于统计性规律，应使用AI辅助发现后由专家确认再转写为SWRL。",
+      "related": ["OWL 2", "SHACL", "推理引擎"],
+      "units": ["u02", "u04"],
+      "firstUnitId": "u02",
+      "sourceOrder": 6,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第二部分 技术体系（第4-5章）· 第1段"
+    },
+    {
+      "id": "description-logic",
+      "term": "描述逻辑（DL）",
+      "fullName": "Description Logic",
+      "zhMeaning": "描述逻辑",
+      "category": "领域术语",
+      "definition": "OWL2的数学基础，一族具有可判定性（decidable）的一阶逻辑子集。通过TBox公理（概念定义）和ABox断言构建知识库，推理引擎（HermiT/Pellet使用Tableau算法）对知识库进行一致性校验和类归属推导。",
+      "context": "DL的「可判定性」保证了推理算法总能终止，这是OWL2区别于一阶逻辑的核心工程价值——不会陷入无限推理循环。",
+      "related": ["OWL 2", "Tableau算法", "推理引擎"],
+      "units": ["u02"],
+      "firstUnitId": "u02",
+      "sourceOrder": 7,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第二部分 技术体系（第4-5章）· 第1段"
+    },
+    {
+      "id": "nesy",
+      "term": "NeSy（神经符号AI）",
+      "fullName": "Neuro-Symbolic AI",
+      "zhMeaning": "神经符号人工智能",
+      "category": "英文缩写",
+      "definition": "将神经网络（感知/模式识别/语言生成）与符号推理（本体/规则/逻辑）融合的AI范式。神经网络处理语言层面的模糊性，符号本体提供精确的世界结构和安全约束。",
+      "context": "NeSy正是解决「LLM幻觉」的根本路径：大模型负责理解意图，本体提供可验证的语义锚点，防止AI输出看似合理实则违背现实约束的结论。",
+      "related": ["PINN", "工程世界模型", "T-Π-O 认知框架"],
+      "units": ["u03"],
+      "firstUnitId": "u03",
+      "sourceOrder": 8,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+    },
+    {
+      "id": "ontology-compiler",
+      "term": "本体编译器",
+      "fullName": "Ontology Compiler",
+      "zhMeaning": "本体编译器",
+      "category": "方法框架",
+      "definition": "将非结构化企业文档（设计说明书、工艺规范、维修记录）自动「编译」为形式化本体TBox/RBox/ABox的AI工具流程：LLM语义理解→实体/关系抽取→候选本体生成→专家审核→形式化落地。",
+      "context": "本体编译器解决了本体建设的最大瓶颈：高度依赖少数专家的人工建模效率问题。同样的编译逻辑也适用于将实时业务数据编译为ABox实例（MES事件→Equipment(M500)+hasStatus(Running)断言）。",
+      "related": ["LLM", "TBox", "ABox", "持续演化"],
+      "units": ["u03", "u04"],
+      "firstUnitId": "u03",
+      "sourceOrder": 9,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+    },
+    {
+      "id": "digital-twin",
+      "term": "数字孪生",
+      "fullName": "Digital Twin",
+      "zhMeaning": "数字孪生",
+      "category": "领域术语",
+      "definition": "物理实体在数字空间的精确映射，与物理世界持续同步更新。在本书语境中，工程本体是数字孪生实现「语义映射」的必要基础——没有实时更新的ABox作为支撑，数字孪生所承诺的「物理与数字精确映射」无从落地。",
+      "context": "工程本体在数字孪生中的角色：建立物理实体（设备、产品、工艺）与数字模型之间的语义映射，使数字世界中的每一个状态变化都能准确对应物理世界中真实发生的事件。",
+      "related": ["ABox", "动态本体与语义动力学", "工程世界模型"],
+      "units": ["u03", "u04"],
+      "firstUnitId": "u03",
+      "sourceOrder": 10,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+    },
+    {
+      "id": "knowledge-compounding",
+      "term": "知识复利",
+      "fullName": "Knowledge Compounding",
+      "zhMeaning": "知识复利",
+      "category": "领域术语",
+      "definition": "类比金融复利：企业在工程本体上的每一次知识投入，不会随时间折旧，反而通过T-Π-O三层循环积累持续增值——T积累结构认知，Π积累投影方法，O积累历史观测轨迹，三者共同构成外部竞争对手难以短期复制的Know-how壁垒。",
+      "context": "「软件可以重写，知识需要长期积累」——AI时代最大的资产不是代码而是知识。企业对本体的持续投入，构筑的是一道时间越长越不可复制的竞争护城河。",
+      "related": ["T-Π-O 认知框架", "工程世界模型", "本体驱动开发（ODD）"],
+      "units": ["u04", "u06"],
+      "firstUnitId": "u04",
+      "sourceOrder": 11,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+    },
+    {
+      "id": "operational-ontology",
+      "term": "可操作本体",
+      "fullName": "Operational Ontology",
+      "zhMeaning": "可操作本体",
+      "category": "领域术语",
+      "definition": "在描述世界「有什么」（名词/Object）基础上，进一步将「对世界的被允许操作」（动词/Action）也作为本体的一等公民建模——本体从「说明书」升级为「说明书+操作面板」。Palantir的核心创新。",
+      "context": "「可操作」意味着：不仅可读，还可写；不仅可看，还可控；不仅可分析，还可执行——但所有执行都必须通过预定义、经过安全审查的Action，LLM不能直接操作底层系统。",
+      "related": ["Palantir三层可操作本体架构", "Action Types", "OAG"],
+      "units": ["u05"],
+      "firstUnitId": "u05",
+      "sourceOrder": 12,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第五部分 Palantir企业AI（第10章）· 第1段"
+    },
+    {
+      "id": "fde",
+      "term": "FDE",
+      "fullName": "Forward Deployed Engineer",
+      "zhMeaning": "前沿部署工程师",
+      "category": "英文缩写",
+      "definition": "Palantir的标志性实施模式：具备极强工程能力和业务理解力的复合型工程师驻扎客户一线（工厂车间/钻井平台），与领域专家联合共创，快速构建MVP本体→低代码工具→AI落地，在使用中演化而非在文档中抽象。",
+      "context": "FDE解决的根本问题是「IT开发人员不懂业务，业务专家不懂高维数据建模」的长期失配；其竞争壁垒不是软件功能（可被复制），而是深度嵌入业务的本体建模经验（难以复制）。",
+      "related": ["可操作本体", "知识复利", "Middle-Out"],
+      "units": ["u05"],
+      "firstUnitId": "u05",
+      "sourceOrder": 13,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第五部分 Palantir企业AI（第10章）· 第1段"
+    },
+    {
+      "id": "computable-ontology",
+      "term": "可计算本体（CO）",
+      "fullName": "Computable Ontology",
+      "zhMeaning": "可计算本体",
+      "category": "领域术语",
+      "definition": "在工程本体基础上扩展，加入Process（过程演化）、Constraint（物理约束安全防火墙）和Interaction（物理世界操作接口）三类要素，使本体从「描述世界」升级为「理解—推理—执行」完整智能回路，专为物理AI设计。",
+      "context": "CO的「可计算性」体现在：约束是AI决策的「大法官」，违反物理约束的操作在执行前被拦截；Process让本体从「静态分类」变为「动态推演」；Interaction是从知识到物理行动的最后一英里。",
+      "related": ["物理AI", "T-Π-O 认知框架", "工程世界模型"],
+      "units": ["u06"],
+      "firstUnitId": "u06",
+      "sourceOrder": 14,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    },
+    {
+      "id": "world-model",
+      "term": "工程世界模型",
+      "fullName": "Engineering World Model",
+      "zhMeaning": "工程世界模型",
+      "category": "领域术语",
+      "definition": "世界模型 = 工程本体（结构骨架）+ 数据（现实状态）+ 仿真（未来演化）+ 推理（决策能力）。区别于静态知识图谱，世界模型具备三种核心能力：世界表示、世界演化、行动预测——回答「如果我做出某动作，会发生什么？」",
+      "context": "大语言模型学习语言空间的概率结构，不是现实世界的因果结构；世界模型才是AI从「生成答案」到「理解推理行动」的关键跃迁，也是未来企业竞争的核心资产。",
+      "related": ["T-Π-O 认知框架", "可计算本体（CO）", "知识复利"],
+      "units": ["u06"],
+      "firstUnitId": "u06",
+      "sourceOrder": 15,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    },
+    {
+      "id": "opc",
+      "term": "OPC",
+      "fullName": "One Person Company",
+      "zhMeaning": "一人公司",
+      "category": "英文缩写",
+      "definition": "个人通过AI Agent和数字化知识资产获得类似企业级的生产能力，而非依靠组织规模扩大产能。支撑OPC的核心不是聊天机器人，而是「个人可计算本体」（Knowledge+Skill+Experience+Decision+Action的形式化结构）。",
+      "context": "未来工程师的核心竞争力从「编写多少代码」转向「构建多高质量的智能知识体系」；个人本体将成为每个创造者的数字生命基础，使个人经验与专业能力在数字世界中持续存在并创造价值。",
+      "related": ["个人本体", "FDE", "知识复利"],
+      "units": ["u06"],
+      "firstUnitId": "u06",
+      "sourceOrder": 16,
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    }
+  ],
+  "decisionRules": [
+    {
+      "id": "rule-cq-first",
+      "when": "启动任何本体建设项目，无论大小",
+      "do": "先写出至少5-10个具体的CQ（能力问题），将其作为本体范围的边界条件，再开始建模",
+      "because": "没有CQ的本体建设容易陷入「盲目建模」——要么建得太小、遗漏关键知识，要么建得太大、超出实际需要，且难以验证本体是否满足业务需求",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "rule-abox-realtime",
+      "when": "部署工程本体系统，设计ABox数据接入方案",
+      "do": "必须建立ABox的实时更新机制（对接MES/ERP/IoT数据流），而非一次性导入后依赖人工维护",
+      "because": "静态ABox是「数字化石」，无法支撑多Agent实时决策；只有实时ABox才能成为多Agent共享的工作记忆，实现真正的协同决策",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+    },
+    {
+      "id": "rule-shared-ontology",
+      "when": "设计多Agent协同系统架构",
+      "do": "所有Agent共享同一套本体作为语义层，而非Agent之间直接点对点通信或各自维护私有数据结构",
+      "because": "点对点通信随Agent数量增加接口呈平方级膨胀，且任何Agent更新状态无法被其他Agent感知；共享本体使状态更新立即对所有Agent可见，彻底消除信息孤岛",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+    },
+    {
+      "id": "rule-llm-via-ontology",
+      "when": "将LLM集成进企业AI系统，需要访问企业数据和执行业务操作",
+      "do": "LLM不直接访问数据库或调用系统API，而是通过本体获取结构化Object，通过预定义Action执行操作",
+      "because": "LLM直接面对原始数据会产生幻觉和越权风险；本体作为中间层提供语义安全网关（OAG），确保LLM只能在预定义的安全边界内行动，所有操作可审计可追溯",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第五部分 Palantir企业AI（第10章）· 第1段"
+    },
+    {
+      "id": "rule-ontology-ci-cd",
+      "when": "更新或升级已在生产环境运行的工程本体",
+      "do": "每次更新自动执行完整质量保障流水线：一致性检查→规则验证→CQ回归测试→Agent回归测试，并赋予语义版本号（SemVer）",
+      "because": "本体升级引入新规则可能在既有ABox实例上产生意外推理结果；回归测试确保新版本不破坏已验证能力；版本管理支持问题追溯和必要时的安全回滚",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+    },
+    {
+      "id": "rule-physical-ai-safety",
+      "when": "将AI系统部署到物理执行场景（机器人、工业控制、自动驾驶）",
+      "do": "在LLM和物理执行体之间必须引入可计算本体作为语义安全层，将物理约束（能量守恒、材料极限、安全边界）形式化为本体约束",
+      "because": "物理世界存在不可违反的客观规律；LLM输出的错误指令在数字世界只是「数据错误」，在物理世界却可能导致设备损坏或人身安全事故；本体约束是执行前的最后一道安全屏障",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "rel-cq-5layer",
+      "from": "fw-cq",
+      "to": "fw-5layer",
+      "type": "prerequisite",
+      "explanation": "CQ驱动设计是使用五层架构的前提：CQ决定TBox需要哪些类、RBox需要哪些关系、ABox需要哪些实例——没有CQ，五层架构的建设缺乏需求锚点，容易盲目建模。",
+      "evidence": "material",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "rel-dynamic-co",
+      "from": "fw-dynamic",
+      "to": "fw-co",
+      "type": "prerequisite",
+      "explanation": "动态本体（State+Event+Transition+Action）是可计算本体中Process要素的理论基础；没有动态本体理论，CO的「过程演化」要素无法得到严格的形式化支撑。",
+      "evidence": "material",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+    },
+    {
+      "id": "rel-co-worldmodel",
+      "from": "fw-co",
+      "to": "fw-worldmodel",
+      "type": "prerequisite",
+      "explanation": "可计算本体（7要素）是工程世界模型「结构骨架」部分的实现形式；可计算本体提供形式化的世界结构+约束+过程表示，是世界模型得以运转的语义地基。",
+      "evidence": "material",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    },
+    {
+      "id": "rel-nesy-compiler",
+      "from": "fw-nesy",
+      "to": "fw-compiler",
+      "type": "applies",
+      "explanation": "本体编译器是NeSy「LLM+本体融合」范式在知识构建阶段的具体实现：LLM承担语言理解和实体关系抽取（神经部分），本体承担形式化落地和一致性校验（符号部分）。",
+      "evidence": "material",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+    },
+    {
+      "id": "rel-palantir-odd",
+      "from": "fw-palantir",
+      "to": "fw-odd",
+      "type": "applies",
+      "explanation": "Palantir三层架构是本体驱动开发（ODD）范式的企业级工程实现：业务逻辑以TBox/RBox形式存在语义层，数据以ABox形式存在动能层，规则验证在动态层，所有上层应用只通过Object/Action访问。",
+      "evidence": "material",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+    },
+    {
+      "id": "rel-worldmodel-compounding",
+      "from": "fw-worldmodel",
+      "to": "fw-knowledge-compounding",
+      "type": "causes",
+      "explanation": "工程世界模型通过T-Π-O三层持续循环自然产生知识复利：每次O反馈都在校验T（结构认知积累）和打磨Π（方法论积累），使世界模型对现实的理解随时间不断精准化。",
+      "evidence": "material",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    },
+    {
+      "id": "rel-tpo-worldmodel",
+      "from": "fw-tpo",
+      "to": "fw-worldmodel",
+      "type": "prerequisite",
+      "explanation": "T-Π-O是世界模型得以落地的统一认知框架：T对应本体建模的目标（客观现实），Π对应本体+推理引擎的投影计算，O对应ABox实例数据的持续更新——三者共同构成世界模型的运作机制。",
+      "evidence": "material",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+    },
+    {
+      "id": "rel-rule-cq-first-cq",
+      "from": "fw-cq",
+      "to": "rule-cq-first",
+      "type": "applies",
+      "explanation": "规则「先写CQ再建模」直接对应CQ驱动设计方法论的核心原则：CQ是本体范围的边界条件和完整性验证标准。",
+      "evidence": "material",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+    },
+    {
+      "id": "rel-rule-llm-palantir",
+      "from": "fw-palantir",
+      "to": "rule-llm-via-ontology",
+      "type": "applies",
+      "explanation": "Palantir架构直接对应「LLM通过本体而非直接访问数据库」这条规则：LLM输入是本体格式化的Object，输出被限制在预定义的Action范围内，这是Palantir大模型网关的工程实现。",
+      "evidence": "material",
+      "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第五部分 Palantir企业AI（第10章）· 第1段"
+    }
+  ],
+  "assessment": {
+    "focusAreas": [
+      {
+        "id": "focus-01",
+        "title": "TBox、RBox、ABox三层的职责区分与相互关系",
+        "unitId": "u01",
+        "abilities": ["记忆", "解释", "应用"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+      },
+      {
+        "id": "focus-02",
+        "title": "什么是正确的CQ？如何区分CQ与功能需求描述",
+        "unitId": "u01",
+        "abilities": ["解释", "应用"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第一部分 理论基础（第1-3章）· 第1段"
+      },
+      {
+        "id": "focus-03",
+        "title": "OWL2四个子语言（DL/EL/QL/RL）的特点与选型依据",
+        "unitId": "u02",
+        "abilities": ["记忆", "应用"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第二部分 技术体系（第4-5章）· 第1段"
+      },
+      {
+        "id": "focus-04",
+        "title": "SWRL规则的结构与适用场景（与OWL2 DL推理的边界）",
+        "unitId": "u02",
+        "abilities": ["解释", "应用"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第二部分 技术体系（第4-5章）· 第1段"
+      },
+      {
+        "id": "focus-05",
+        "title": "NeSy三种融合模式（Pipeline/Parallel/Deep）的特点与选型",
+        "unitId": "u03",
+        "abilities": ["记忆", "解释"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+      },
+      {
+        "id": "focus-06",
+        "title": "动态本体四要素（State/Event/Transition/Action）如何建模工程系统演化",
+        "unitId": "u03",
+        "abilities": ["解释", "应用"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第三部分 应用实践（第6-8章）· 第1段"
+      },
+      {
+        "id": "focus-07",
+        "title": "AI辅助工程本体建设的「理解—推理—执行—反馈」闭环",
+        "unitId": "u04",
+        "abilities": ["解释", "迁移"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+      },
+      {
+        "id": "focus-08",
+        "title": "多Agent协同为什么应使用共享本体而非点对点通信？",
+        "unitId": "u04",
+        "abilities": ["解释", "应用"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第四部分 AI时代实践（第9章）· 第1段"
+      },
+      {
+        "id": "focus-09",
+        "title": "Palantir可操作本体（Object/Action「名词+动词」）的核心创新是什么？",
+        "unitId": "u05",
+        "abilities": ["解释", "应用"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第五部分 Palantir企业AI（第10章）· 第1段"
+      },
+      {
+        "id": "focus-10",
+        "title": "T-Π-O三层的含义及其如何统一本书前面各章的核心命题",
+        "unitId": "u06",
+        "abilities": ["解释", "迁移"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+      },
+      {
+        "id": "focus-11",
+        "title": "工程世界模型与知识图谱的本质区别（静态vs动态，「是什么」vs「如何变化」）",
+        "unitId": "u06",
+        "abilities": ["解释", "应用"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+      },
+      {
+        "id": "focus-12",
+        "title": "知识复利：T/Π/O三条积累线索如何构成不可复制的竞争壁垒？",
+        "unitId": "u06",
+        "abilities": ["解释", "迁移"],
+        "source": "《工程本体论》四审-0912 Tmachine.docx · 标题路径：第六部分 CO与世界模型（第11-12章）· 第1段"
+      }
+    ]
+  },
+  "footer": "快速导读版 · 《工程本体论》张东普 · 2026年8月 · 涵盖全部12章核心论述"
+}
