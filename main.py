@@ -320,8 +320,11 @@ class ChatReq(BaseModel):
     conversation_id: Optional[str] = None
 
 
-def generate_reply(message: str, history: List[dict]) -> str:
-    """history: [{"role": "user"|"assistant", "text": "..."}]"""
+def generate_reply(message: str, history: List[dict], max_tokens: int = 1200, brief: bool = False) -> str:
+    """history: [{"role": "user"|"assistant", "text": "..."}]
+    brief=True：微信渠道专用，回答长度本身就是实测把微信5秒被动回复预算挤爆的主因（见
+    xiaoba2 memory 记录），所以不只是砍 max_tokens 硬截断（截断会在句子中间断掉，很难看），
+    还在用户消息末尾加一句明确要求简短作答，让模型自己收着写、在合理长度内说完整句话。"""
     api_key = os.environ.get("ZHIPU_API_KEY")
     if not api_key:
         raise HTTPException(
@@ -336,7 +339,10 @@ def generate_reply(message: str, history: List[dict]) -> str:
     for m in history:
         role = "user" if m.get("role") == "user" else "assistant"
         messages.append({"role": role, "content": m.get("text", "")})
-    messages.append({"role": "user", "content": message})
+    final_message = message
+    if brief:
+        final_message += "\n\n（提醒：这是微信渠道，请用不超过150字的中文简要回答，直接给结论，不用展开讲解或分点列举，如需深入可以让我再追问。）"
+    messages.append({"role": "user", "content": final_message})
 
     try:
         response = client.chat.completions.create(
@@ -344,7 +350,7 @@ def generate_reply(message: str, history: List[dict]) -> str:
             messages=messages,
             temperature=0.3,
             top_p=0.75,
-            max_tokens=1200,
+            max_tokens=max_tokens,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -652,7 +658,7 @@ async def wechat_incoming(request: Request):
     else:
         try:
             reply = await asyncio.wait_for(
-                asyncio.to_thread(generate_reply, user_text, history), timeout=remaining
+                asyncio.to_thread(generate_reply, user_text, history, 350, True), timeout=remaining
             )
         except asyncio.TimeoutError:
             logger.warning("微信消息处理：模型调用超过 %.1fs 预算，返回兜底文案", WECHAT_REPLY_BUDGET_SECONDS)
