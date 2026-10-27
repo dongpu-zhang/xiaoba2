@@ -258,6 +258,12 @@ async def debug_wx_token_test():
     return {"ok": "access_token" in data, "errcode": data.get("errcode"), "errmsg": data.get("errmsg")}
 
 
+@app.get("/debug/wx-last-send")
+async def debug_wx_last_send():
+    """临时诊断接口：读最近一次客服消息发送尝试的结果，不用翻 Render 日志。"""
+    return _wx_last_send_debug or {"note": "还没有发送尝试记录"}
+
+
 # ── 对话管理接口 ─────────────────────────────────────────────────────────
 
 @app.get("/api/conversations")
@@ -531,10 +537,16 @@ async def wx_get_access_token() -> Optional[str]:
     return _wx_token_cache["token"]
 
 
+# 临时诊断用：记录最近一次客服消息发送的结果（不含 openid/content 正文，只存排查需要的
+# 字段），配一个 /debug/wx-last-send 接口读，不用去翻 Render 日志。确认稳定之后可以删掉。
+_wx_last_send_debug: dict = {}
+
+
 async def wx_send_customer_text(openid: str, content: str) -> None:
     """客服消息接口：不受被动回复 5 秒限制，但只能在用户最近 48 小时内主动联系过才能推送。"""
     token = await wx_get_access_token()
     if not token:
+        _wx_last_send_debug.update({"ts": time.time(), "step": "get_token", "ok": False})
         return
     # 微信客服消息单条长度限制 2048 字节，按中文 3 字节/字粗略切成安全长度分段发送
     chunks = [content[i:i + 600] for i in range(0, len(content), 600)] or [""]
@@ -546,6 +558,13 @@ async def wx_send_customer_text(openid: str, content: str) -> None:
                 json={"touser": openid, "msgtype": "text", "text": {"content": chunk}},
             )
             data = r.json()
+            _wx_last_send_debug.update({
+                "ts": time.time(),
+                "step": "send",
+                "ok": data.get("errcode", 0) == 0,
+                "errcode": data.get("errcode"),
+                "errmsg": data.get("errmsg"),
+            })
             if data.get("errcode", 0) != 0:
                 logger.error("微信客服消息发送失败 errcode=%s errmsg=%s", data.get("errcode"), data.get("errmsg"))
 
