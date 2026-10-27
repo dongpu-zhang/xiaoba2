@@ -47,6 +47,19 @@ WECHAT_APPSECRET = os.environ.get("WECHAT_APPSECRET", "")
 WX_PUSH_ENABLED = bool(WECHAT_APPID and WECHAT_APPSECRET)
 _wx_token_cache: dict = {"token": None, "expires_at": 0.0}
 
+# asyncio.create_task() 只持有任务的弱引用——如果没有别的地方强引用这个 task 对象，
+# 事件循环的 gc 随时可能在它跑完之前把它回收掉，表现就是"偶尔/经常悄无声息地不执行"，
+# 不会报错不会留日志。所有"fire and forget"后台任务都要用这个 helper 建，强引用存进
+# 一个模块级 set，跑完/出错后通过 done_callback 自动摘掉，不会无限增长。
+_background_tasks: set = set()
+
+
+def fire_and_forget(coro) -> asyncio.Task:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
 # ── 智谱 GLM 配置 ────────────────────────────────────────────────────────────
 # API Key 在 https://open.bigmodel.cn/usercenter/apikeys 免费申请
 ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/"
@@ -612,7 +625,7 @@ async def wechat_incoming(request: Request):
         # 实测 generate_reply() 常规单轮要 ~10 秒，稳定超过被动回复 5 秒上限：被动回复只
         # 秒回一句"正在想"占位，真正的答案通过客服消息接口异步推送（不受 5 秒限制，
         # 唯一约束是只能推给 48 小时内联系过的用户，闲聊场景完全够用）。
-        asyncio.create_task(_wechat_async_reply(from_user, user_text))
+        fire_and_forget(_wechat_async_reply(from_user, user_text))
         ack = "💭 小巴正在想，几秒后把答案发过来～"
         return Response(content=_wechat_xml_reply(from_user, to_user, ack), media_type="application/xml")
 
@@ -662,7 +675,7 @@ async def wechat_incoming(request: Request):
                 logger.error("Supabase 写入失败: %s", e.response.text)
 
         # 不等这步完成——已经没有时间预算了，被动回复必须先发出去；持久化失败不影响本次回复
-        asyncio.create_task(_persist())
+        fire_and_forget(_persist())
 
     return Response(content=_wechat_xml_reply(from_user, to_user, reply), media_type="application/xml")
 
