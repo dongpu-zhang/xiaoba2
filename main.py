@@ -243,6 +243,21 @@ async def debug_outbound_ip():
         return r.json()
 
 
+@app.get("/debug/wx-token-test")
+async def debug_wx_token_test():
+    """临时诊断接口：从 Render 实例本身（不是我本地）直接请求 access_token，
+    验证 IP 白名单是否真的生效了——不用再靠发真实微信消息、再去翻 Render 日志才能看到结果。
+    故意不回传 access_token 本身，只回传成功与否+微信返回的 errcode/errmsg，避免这个临时
+    接口泄露凭据。"""
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            "https://api.weixin.qq.com/cgi-bin/token",
+            params={"grant_type": "client_credential", "appid": WECHAT_APPID, "secret": WECHAT_APPSECRET},
+        )
+        data = r.json()
+    return {"ok": "access_token" in data, "errcode": data.get("errcode"), "errmsg": data.get("errmsg")}
+
+
 # ── 对话管理接口 ─────────────────────────────────────────────────────────
 
 @app.get("/api/conversations")
