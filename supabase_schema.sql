@@ -21,3 +21,8 @@ create index if not exists idx_xiaoba_messages_conv
 alter table xiaoba_conversations add column if not exists wa_phone text;
 create unique index if not exists idx_xiaoba_conversations_wa_phone
   on xiaoba_conversations(wa_phone) where wa_phone is not null;
+
+-- 微信公众号对接：每个用户 openid 绑定一条固定的 conversation
+alter table xiaoba_conversations add column if not exists wx_openid text;
+create unique index if not exists idx_xiaoba_conversations_wx_openid
+  on xiaoba_conversations(wx_openid) where wx_openid is not null;

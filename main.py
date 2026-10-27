@@ -1,16 +1,19 @@
 """小巴 2.0 - 《工程本体论》学习助手（智谱 GLM-4-Flash · 免费版 + Supabase 对话持久化）"""
+import asyncio
 import hashlib
 import hmac
 import json
 import logging
 import os
+import time
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from openai import OpenAI
 from pydantic import BaseModel
 
@@ -23,6 +26,14 @@ WHATSAPP_ACCESS_TOKEN  = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 WHATSAPP_API_VERSION   = os.environ.get("WHATSAPP_API_VERSION", "v21.0")
 WA_ENABLED = bool(WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID)
+
+# ── 微信公众号（订阅号·明文模式）配置 ────────────────────────────────────────
+# 公众号后台「设置与开发 → 消息推送」里的 Token 要跟这个环境变量填一样的值
+WECHAT_TOKEN = os.environ.get("WECHAT_TOKEN", "")
+WX_ENABLED = bool(WECHAT_TOKEN)
+# 微信要求 5 秒内必须返回被动回复，超时用户会看到空白。给模型调用留 4.3 秒预算，
+# 查/建 Supabase 对话再单独留一点余量，差一点点就直接返回兜底文案，不等它慢慢超时。
+WECHAT_REPLY_BUDGET_SECONDS = 4.3
 
 # ── 智谱 GLM 配置 ────────────────────────────────────────────────────────────
 # API Key 在 https://open.bigmodel.cn/usercenter/apikeys 免费申请
@@ -93,10 +104,14 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-async def sb_create_conversation(title: str, wa_phone: Optional[str] = None) -> dict:
+async def sb_create_conversation(
+    title: str, wa_phone: Optional[str] = None, wx_openid: Optional[str] = None
+) -> dict:
     payload = {"title": title}
     if wa_phone:
         payload["wa_phone"] = wa_phone
+    if wx_openid:
+        payload["wx_openid"] = wx_openid
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{SUPABASE_URL}/rest/v1/xiaoba_conversations",
@@ -107,12 +122,13 @@ async def sb_create_conversation(title: str, wa_phone: Optional[str] = None) -> 
         return r.json()[0]
 
 
-async def sb_find_conversation_by_phone(wa_phone: str) -> Optional[dict]:
-    async with httpx.AsyncClient() as client:
+async def sb_find_conversation_by(column: str, value: str, timeout: Optional[float] = None) -> Optional[dict]:
+    """按某个渠道标识列（wa_phone / wx_openid）查已绑定的固定对话。"""
+    async with httpx.AsyncClient(timeout=timeout) as client:
         r = await client.get(
             f"{SUPABASE_URL}/rest/v1/xiaoba_conversations",
             headers=SB_HEADERS,
-            params={"wa_phone": f"eq.{wa_phone}", "select": "id,title", "limit": "1"},
+            params={column: f"eq.{value}", "select": "id,title", "limit": "1"},
         )
         r.raise_for_status()
         rows = r.json()
@@ -201,6 +217,7 @@ async def health():
         "api_key_set": bool(os.environ.get("ZHIPU_API_KEY")),
         "supabase_enabled": SB_ENABLED,
         "whatsapp_enabled": WA_ENABLED,
+        "wechat_enabled": WX_ENABLED,
     }
 
 
@@ -400,7 +417,7 @@ async def whatsapp_incoming(request: Request):
         conversation_id = None
         if SB_ENABLED:
             try:
-                conv = await sb_find_conversation_by_phone(from_phone)
+                conv = await sb_find_conversation_by("wa_phone", from_phone)
                 if conv:
                     conversation_id = conv["id"]
                     past = await sb_get_messages(conversation_id)
@@ -431,3 +448,117 @@ async def whatsapp_incoming(request: Request):
             logger.exception("连兜底回复都发送失败 (from=%s)", from_phone)
 
     return JSONResponse({"ok": True})
+
+
+# ── 微信公众号（订阅号·明文模式·被动回复）对接 ───────────────────────────────
+# 文档: https://developers.weixin.qq.com/doc/offiaccount/Basic_Information/Access_Overview.html
+# 关键约束：微信要求服务器在收到消息后 5 秒内返回被动回复 XML，超时用户会看到空白/报错，
+# 而且不支持像 WhatsApp 那样"先 ack 再异步推送"（公众号的异步推送是客服消息接口，
+# 需要认证服务号，个人订阅号用不了）。所以这条路径必须全程算时间预算，宁可提前兜底
+# 返回一句"请稍后再问"，也不能让 generate_reply() 无限期跑下去。
+
+def _wechat_xml_reply(to_user: str, from_user: str, content: str) -> str:
+    # 公众号被动回复用 CDATA 包裹正文，模型回复里常见的 &/</> 等字符不需要额外转义
+    return (
+        f"<xml><ToUserName><![CDATA[{to_user}]]></ToUserName>"
+        f"<FromUserName><![CDATA[{from_user}]]></FromUserName>"
+        f"<CreateTime>{int(time.time())}</CreateTime>"
+        f"<MsgType><![CDATA[text]]></MsgType>"
+        f"<Content><![CDATA[{content}]]></Content></xml>"
+    )
+
+
+def _verify_wechat_signature(signature: Optional[str], timestamp: Optional[str], nonce: Optional[str]) -> bool:
+    if not (WX_ENABLED and signature and timestamp and nonce):
+        return False
+    expected = hashlib.sha1("".join(sorted([WECHAT_TOKEN, timestamp, nonce])).encode()).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+
+@app.get("/webhook/wechat")
+async def wechat_verify(request: Request):
+    """公众号后台「消息推送 → 启用」时的一次性服务器验证。"""
+    params = request.query_params
+    if _verify_wechat_signature(params.get("signature"), params.get("timestamp"), params.get("nonce")):
+        return PlainTextResponse(params.get("echostr", ""))
+    raise HTTPException(status_code=403, detail="签名校验失败，检查 WECHAT_TOKEN 是否和公众号后台填的一致")
+
+
+@app.post("/webhook/wechat")
+async def wechat_incoming(request: Request):
+    params = request.query_params
+    if not _verify_wechat_signature(params.get("signature"), params.get("timestamp"), params.get("nonce")):
+        raise HTTPException(status_code=403, detail="签名校验失败")
+
+    deadline = time.monotonic() + WECHAT_REPLY_BUDGET_SECONDS
+    raw_body = await request.body()
+
+    try:
+        root = ET.fromstring(raw_body)
+    except ET.ParseError:
+        return Response(content="success", media_type="text/plain")
+
+    def _field(tag: str) -> str:
+        el = root.find(tag)
+        return el.text or "" if el is not None else ""
+
+    from_user = _field("FromUserName")  # 用户的 openid
+    to_user = _field("ToUserName")      # 公众号自己的原始 ID
+    msg_type = _field("MsgType")
+
+    if msg_type != "text" or not from_user:
+        # 关注/取关/点击菜单等事件，或非文本消息：按微信规范直接返回空字符串表示不回复
+        return Response(content="", media_type="text/plain")
+
+    user_text = _field("Content").strip()
+    if not user_text:
+        return Response(content="", media_type="text/plain")
+
+    history: List[dict] = []
+    conversation_id: Optional[str] = None
+    if SB_ENABLED:
+        remaining = max(deadline - time.monotonic(), 0.3)
+        try:
+            conv = await asyncio.wait_for(
+                sb_find_conversation_by("wx_openid", from_user, timeout=remaining), timeout=remaining
+            )
+            if conv:
+                conversation_id = conv["id"]
+                past = await asyncio.wait_for(sb_get_messages(conversation_id), timeout=remaining)
+                history = [{"role": r["role"], "text": r["content"]} for r in past[-20:]]
+        except (httpx.HTTPStatusError, asyncio.TimeoutError) as e:
+            logger.warning("微信消息处理：查历史失败/超时，退化成无历史单轮回答 (%s)", e)
+
+    remaining = deadline - time.monotonic()
+    if remaining <= 0.5:
+        # 查历史就已经把时间预算耗光了，没时间再等模型，直接认怂返回兜底文案
+        reply = "问题有点多，小巴还在想，请隔几秒再发一次～"
+    else:
+        try:
+            reply = await asyncio.wait_for(
+                asyncio.to_thread(generate_reply, user_text, history), timeout=remaining
+            )
+        except asyncio.TimeoutError:
+            logger.warning("微信消息处理：模型调用超过 %.1fs 预算，返回兜底文案", WECHAT_REPLY_BUDGET_SECONDS)
+            reply = "小巴想得有点久，没来得及想完，请再问一次试试～"
+        except HTTPException as e:
+            logger.error("微信消息处理：模型调用失败 %s", e.detail)
+            reply = "小巴这边刚才出了点小问题，请稍后再问一次～"
+
+    if SB_ENABLED:
+        async def _persist():
+            try:
+                cid = conversation_id
+                if not cid:
+                    conv = await sb_create_conversation(f"微信 {from_user}", wx_openid=from_user)
+                    cid = conv["id"]
+                await sb_add_message(cid, "user", user_text)
+                await sb_add_message(cid, "assistant", reply)
+                await sb_touch_conversation(cid)
+            except httpx.HTTPStatusError as e:
+                logger.error("Supabase 写入失败: %s", e.response.text)
+
+        # 不等这步完成——已经没有时间预算了，被动回复必须先发出去；持久化失败不影响本次回复
+        asyncio.create_task(_persist())
+
+    return Response(content=_wechat_xml_reply(from_user, to_user, reply), media_type="application/xml")
