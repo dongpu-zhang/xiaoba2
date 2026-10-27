@@ -247,36 +247,6 @@ async def health():
     }
 
 
-@app.get("/debug/outbound-ip")
-async def debug_outbound_ip():
-    """临时诊断接口：查这个 Render 实例实际的出口 IP，填进公众号后台的 API IP 白名单。
-    确认微信客服消息接口能正常调用之后可以删掉，不是长期要保留的功能。"""
-    async with httpx.AsyncClient() as client:
-        r = await client.get("https://api.ipify.org?format=json")
-        return r.json()
-
-
-@app.get("/debug/wx-token-test")
-async def debug_wx_token_test():
-    """临时诊断接口：从 Render 实例本身（不是我本地）直接请求 access_token，
-    验证 IP 白名单是否真的生效了——不用再靠发真实微信消息、再去翻 Render 日志才能看到结果。
-    故意不回传 access_token 本身，只回传成功与否+微信返回的 errcode/errmsg，避免这个临时
-    接口泄露凭据。"""
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            "https://api.weixin.qq.com/cgi-bin/token",
-            params={"grant_type": "client_credential", "appid": WECHAT_APPID, "secret": WECHAT_APPSECRET},
-        )
-        data = r.json()
-    return {"ok": "access_token" in data, "errcode": data.get("errcode"), "errmsg": data.get("errmsg")}
-
-
-@app.get("/debug/wx-last-send")
-async def debug_wx_last_send():
-    """临时诊断接口：读最近一次客服消息发送尝试的结果，不用翻 Render 日志。"""
-    return _wx_last_send_debug or {"note": "还没有发送尝试记录"}
-
-
 # ── 对话管理接口 ─────────────────────────────────────────────────────────
 
 @app.get("/api/conversations")
@@ -556,8 +526,9 @@ async def wx_get_access_token() -> Optional[str]:
     return _wx_token_cache["token"]
 
 
-# 临时诊断用：记录最近一次客服消息发送的结果（不含 openid/content 正文，只存排查需要的
-# 字段），配一个 /debug/wx-last-send 接口读，不用去翻 Render 日志。确认稳定之后可以删掉。
+# 客服消息接口目前对这个未认证个人订阅号返回 errcode 48001（api unauthorized），
+# WX_PUSH_ENABLED 平时是关着的（没配 WECHAT_APPID/SECRET）。这个 dict 记最近一次发送
+# 结果，留着是为了以后账号升级成认证服务号、重新打开这条路时排查用，不含 openid/正文。
 _wx_last_send_debug: dict = {}
 
 
