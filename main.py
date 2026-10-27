@@ -5,6 +5,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -305,11 +306,33 @@ class ChatReq(BaseModel):
     conversation_id: Optional[str] = None
 
 
-def generate_reply(message: str, history: List[dict], max_tokens: int = 1200, brief: bool = False) -> str:
+FOLLOWUPS_MARKER = "@@FOLLOWUPS@@"
+
+
+def split_followups(text: str) -> tuple[str, List[str]]:
+    """把 generate_reply(want_followups=True) 返回文本里追加的追问列表拆出来。
+    返回 (正文, 最多3个追问问题)；没有 marker 时追问列表为空，正文原样返回。"""
+    if FOLLOWUPS_MARKER not in text:
+        return text.strip(), []
+    main, _, tail = text.partition(FOLLOWUPS_MARKER)
+    followups = [q.strip() for q in tail.strip().split("|") if q.strip()]
+    return main.strip(), followups[:3]
+
+
+def generate_reply(
+    message: str,
+    history: List[dict],
+    max_tokens: int = 1200,
+    brief: bool = False,
+    want_followups: bool = False,
+) -> str:
     """history: [{"role": "user"|"assistant", "text": "..."}]
     brief=True：微信渠道专用，回答长度本身就是实测把微信5秒被动回复预算挤爆的主因（见
     xiaoba2 memory 记录），所以不只是砍 max_tokens 硬截断（截断会在句子中间断掉，很难看），
-    还在用户消息末尾加一句明确要求简短作答，让模型自己收着写、在合理长度内说完整句话。"""
+    还在用户消息末尾加一句明确要求简短作答，让模型自己收着写、在合理长度内说完整句话。
+    want_followups=True：Telegram 渠道专用，要求模型在正文后面另起一行输出
+    `@@FOLLOWUPS@@问题1|问题2|问题3`，调用方用 split_followups() 拆出来做成按钮。
+    只在要用的渠道传 True，避免这段 marker 文本泄露到 WhatsApp/微信/网页等不解析它的地方。"""
     api_key = os.environ.get("ZHIPU_API_KEY")
     if not api_key:
         raise HTTPException(
@@ -327,6 +350,11 @@ def generate_reply(message: str, history: List[dict], max_tokens: int = 1200, br
     final_message = message
     if brief:
         final_message += "\n\n（提醒：这是微信渠道，请用不超过150字的中文简要回答，直接给结论，不用展开讲解或分点列举，如需深入可以让我再追问。）"
+    if want_followups:
+        final_message += (
+            f"\n\n（另外：在上面的正式回答结束后换一行，输出：{FOLLOWUPS_MARKER}问题1|问题2|问题3，"
+            "给出三个紧扣你刚才回答内容、适合我继续追问的简短问题，不要加其它文字，不要用markdown标记这一行。）"
+        )
     messages.append({"role": "user", "content": final_message})
 
     try:
@@ -716,16 +744,65 @@ async def _wechat_async_reply(from_user: str, user_text: str) -> None:
 # 架构和 WhatsApp 一样：webhook 收到消息 → 同步生成回复 → 调用 sendMessage 主动推送，
 # 没有微信那种 5 秒硬限制，也不需要 IP 白名单。部署好之后要手动调一次 setWebhook
 # 把 Render 的 URL 告诉 Telegram（见本文件末尾的说明，或直接问我）。
+#
+# 群组共读 + 追问按钮：
+# - 群里默认（BotFather privacy mode 开着，这是默认值）bot 只会收到 @提到它 或回复它的
+#   消息，这里的 mentioned/replied_to_bot 判断是双重保险，不是绕开隐私模式的手段。
+# - 每轮回复让模型顺带给3个追问问题（generate_reply(want_followups=True)），做成
+#   inline keyboard 按钮；按钮只存最近一轮到内存 dict 里（_tg_pending_followups），
+#   不持久化——进程重启后旧按钮点了会提示"已过期"，这是可接受的简化。
 
-async def send_telegram_text(chat_id: str, body: str) -> None:
-    # Telegram 单条消息上限 4096 字符，超出的分段发送
+_tg_bot_info_cache: dict = {}
+_tg_pending_followups: dict[str, List[str]] = {}
+
+
+async def get_telegram_bot_info() -> dict:
+    """缓存 getMe 结果（id/username），群组消息判断"是否 @ 了机器人"要用到。"""
+    if _tg_bot_info_cache:
+        return _tg_bot_info_cache
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe"
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+        data = r.json()
+    if data.get("ok"):
+        _tg_bot_info_cache.update(data["result"])
+    else:
+        logger.error("Telegram getMe 失败: %s", data)
+    return _tg_bot_info_cache
+
+
+async def send_telegram_text(chat_id: str, body: str, buttons: Optional[List[str]] = None) -> None:
+    # Telegram 单条消息上限 4096 字符，超出的分段发送；追问按钮只挂在最后一段上
     chunks = [body[i:i + 4000] for i in range(0, len(body), 4000)] or [""]
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    reply_markup = None
+    if buttons:
+        _tg_pending_followups[chat_id] = buttons
+        reply_markup = {
+            "inline_keyboard": [
+                [{"text": q[:60] + ("…" if len(q) > 60 else ""), "callback_data": f"fu:{chat_id}:{i}"}]
+                for i, q in enumerate(buttons)
+            ]
+        }
     async with httpx.AsyncClient() as client:
-        for chunk in chunks:
-            r = await client.post(url, json={"chat_id": chat_id, "text": chunk})
+        for i, chunk in enumerate(chunks):
+            payload = {"chat_id": chat_id, "text": chunk}
+            if reply_markup and i == len(chunks) - 1:
+                payload["reply_markup"] = reply_markup
+            r = await client.post(url, json=payload)
             if r.status_code >= 400:
                 logger.error("Telegram 发送失败 %s: %s", r.status_code, r.text)
+
+
+async def answer_telegram_callback(callback_query_id: str, text: Optional[str] = None) -> None:
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
+    payload = {"callback_query_id": callback_query_id}
+    if text:
+        payload["text"] = text
+    async with httpx.AsyncClient() as client:
+        r = await client.post(url, json=payload)
+        if r.status_code >= 400:
+            logger.error("Telegram answerCallbackQuery 失败 %s: %s", r.status_code, r.text)
 
 
 def _verify_telegram_secret(request: Request) -> bool:
@@ -735,34 +812,10 @@ def _verify_telegram_secret(request: Request) -> bool:
     return request.headers.get("x-telegram-bot-api-secret-token") == TELEGRAM_WEBHOOK_SECRET
 
 
-@app.post("/webhook/telegram")
-async def telegram_incoming(request: Request):
-    if not _verify_telegram_secret(request):
-        raise HTTPException(status_code=403, detail="secret_token 不匹配")
-
-    update = json.loads((await request.body()) or b"{}")
-    message = update.get("message") or {}
-    chat = message.get("chat") or {}
-    chat_id = str(chat.get("id", ""))
-
-    # 没有 message 字段的是编辑消息/频道贴/按钮点击等其它更新类型，确认收到即可，不回复
-    if not chat_id:
-        return JSONResponse({"ok": True})
-
-    if not TG_ENABLED:
-        logger.warning("收到 Telegram 消息，但未配置 TELEGRAM_BOT_TOKEN，无法回复")
-        return JSONResponse({"ok": True})
-
-    if "text" not in message:
-        await send_telegram_text(chat_id, "小巴目前只支持文字消息，请直接发文字问题～")
-        return JSONResponse({"ok": True})
-
-    user_text = message["text"].strip()
-    if not user_text:
-        return JSONResponse({"ok": True})
-
-    # 和 WhatsApp 一样：这里任何一步失败都不能抛异常让 Telegram 重投整个 webhook，
-    # 统一 try/except 兜底一句抱歉文案，始终对 Telegram 返回 200。
+async def _telegram_process_and_reply(chat_id: str, user_text: str) -> None:
+    """生成回复 + 持久化 + 发送（带追问按钮）。文字消息和点击追问按钮两条路径共用。
+    和 WhatsApp 一样：任何一步失败都不能抛异常让 Telegram 重投整个 webhook，统一
+    try/except 兜底一句抱歉文案。"""
     try:
         history: List[dict] = []
         conversation_id = None
@@ -776,7 +829,8 @@ async def telegram_incoming(request: Request):
             except httpx.HTTPStatusError as e:
                 logger.error("Supabase 查询失败: %s", e.response.text)
 
-        reply = generate_reply(user_text, history)
+        raw_reply = generate_reply(user_text, history, want_followups=True)
+        reply, followups = split_followups(raw_reply)
 
         if SB_ENABLED:
             try:
@@ -790,7 +844,7 @@ async def telegram_incoming(request: Request):
             except httpx.HTTPStatusError as e:
                 logger.error("Supabase 写入失败: %s", e.response.text)
 
-        await send_telegram_text(chat_id, reply)
+        await send_telegram_text(chat_id, reply, buttons=followups)
     except Exception:
         logger.exception("处理 Telegram 消息失败 (chat_id=%s)", chat_id)
         try:
@@ -798,4 +852,77 @@ async def telegram_incoming(request: Request):
         except Exception:
             logger.exception("连兜底回复都发送失败 (chat_id=%s)", chat_id)
 
+
+async def _handle_telegram_callback(callback_query: dict) -> None:
+    """用户点了追问按钮：callback_data 格式 fu:<chat_id>:<index>，去内存里查当时存的
+    问题原文，当成一条新消息走正常流程处理。"""
+    callback_id = callback_query.get("id", "")
+    data = callback_query.get("data", "")
+    message = callback_query.get("message") or {}
+    chat_id = str((message.get("chat") or {}).get("id", ""))
+
+    m = re.match(r"^fu:(-?\d+):(\d+)$", data)
+    if not m or m.group(1) != chat_id:
+        await answer_telegram_callback(callback_id, "这个按钮认不出来了，直接发文字问我吧～")
+        return
+
+    idx = int(m.group(2))
+    pending = _tg_pending_followups.get(chat_id) or []
+    if idx >= len(pending):
+        await answer_telegram_callback(callback_id, "这几个追问按钮已经过期，直接发文字问我吧～")
+        return
+
+    await answer_telegram_callback(callback_id)
+    await _telegram_process_and_reply(chat_id, pending[idx])
+
+
+@app.post("/webhook/telegram")
+async def telegram_incoming(request: Request):
+    if not _verify_telegram_secret(request):
+        raise HTTPException(status_code=403, detail="secret_token 不匹配")
+
+    if not TG_ENABLED:
+        logger.warning("收到 Telegram 更新，但未配置 TELEGRAM_BOT_TOKEN，无法回复")
+        return JSONResponse({"ok": True})
+
+    update = json.loads((await request.body()) or b"{}")
+
+    callback_query = update.get("callback_query")
+    if callback_query:
+        await _handle_telegram_callback(callback_query)
+        return JSONResponse({"ok": True})
+
+    message = update.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = str(chat.get("id", ""))
+    chat_type = chat.get("type", "private")
+
+    # 没有 message/chat 字段的是编辑消息、频道贴等其它更新类型，确认收到即可，不回复
+    if not chat_id:
+        return JSONResponse({"ok": True})
+
+    if "text" not in message:
+        if chat_type == "private":
+            await send_telegram_text(chat_id, "小巴目前只支持文字消息，请直接发文字问题～")
+        return JSONResponse({"ok": True})
+
+    raw_text = message["text"]
+
+    if chat_type != "private":
+        # 群组/超级群：只在被 @ 或者是回复机器人自己的消息时才答话，避免刷屏群聊
+        bot_info = await get_telegram_bot_info()
+        bot_username = (bot_info.get("username") or "").lower()
+        bot_id = bot_info.get("id")
+        mentioned = bool(bot_username) and f"@{bot_username}" in raw_text.lower()
+        replied_to_bot = (message.get("reply_to_message") or {}).get("from", {}).get("id") == bot_id
+        if not (mentioned or replied_to_bot):
+            return JSONResponse({"ok": True})
+        user_text = re.sub(rf"@{re.escape(bot_username)}", "", raw_text, flags=re.IGNORECASE).strip() if mentioned else raw_text.strip()
+    else:
+        user_text = raw_text.strip()
+
+    if not user_text:
+        return JSONResponse({"ok": True})
+
+    await _telegram_process_and_reply(chat_id, user_text)
     return JSONResponse({"ok": True})
