@@ -234,6 +234,15 @@ async def health():
     }
 
 
+@app.get("/debug/outbound-ip")
+async def debug_outbound_ip():
+    """临时诊断接口：查这个 Render 实例实际的出口 IP，填进公众号后台的 API IP 白名单。
+    确认微信客服消息接口能正常调用之后可以删掉，不是长期要保留的功能。"""
+    async with httpx.AsyncClient() as client:
+        r = await client.get("https://api.ipify.org?format=json")
+        return r.json()
+
+
 # ── 对话管理接口 ─────────────────────────────────────────────────────────
 
 @app.get("/api/conversations")
