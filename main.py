@@ -31,9 +31,21 @@ WA_ENABLED = bool(WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID)
 # 公众号后台「设置与开发 → 消息推送」里的 Token 要跟这个环境变量填一样的值
 WECHAT_TOKEN = os.environ.get("WECHAT_TOKEN", "")
 WX_ENABLED = bool(WECHAT_TOKEN)
-# 微信要求 5 秒内必须返回被动回复，超时用户会看到空白。给模型调用留 4.3 秒预算，
-# 查/建 Supabase 对话再单独留一点余量，差一点点就直接返回兜底文案，不等它慢慢超时。
+# 实测 generate_reply() 单轮常规问答在线上要 ~10 秒（GLM-4-Flash 生成几百字中文 +
+# Render 美东到智谱国内 API 的跨境延迟），稳定超过微信被动回复 5 秒的硬限制，不是偶发
+# 慢请求，调小这个数字也救不回来。所以只在没配 WECHAT_APPID/SECRET 时才会用到这个同步
+# 兜底预算；配了之后走下面的异步客服消息推送，不受 5 秒限制。
 WECHAT_REPLY_BUDGET_SECONDS = 4.3
+
+# 客服消息接口（异步推送真实回答，绕开被动回复的 5 秒限制）需要 AppID+AppSecret 换
+# access_token。公众号「设置与开发→基础信息」页能看到 AppID，AppSecret 在「开发密钥」
+# 那一块（可能要点"重置"才能看到明文）。未认证个人订阅号这个接口的实际调用额度官方文档
+# 写得含糊，配了之后如果日志里看到 errcode 45015/48001 这类权限错误，大概率是额度/权限
+# 不够，这是已知风险，不是代码 bug。
+WECHAT_APPID = os.environ.get("WECHAT_APPID", "")
+WECHAT_APPSECRET = os.environ.get("WECHAT_APPSECRET", "")
+WX_PUSH_ENABLED = bool(WECHAT_APPID and WECHAT_APPSECRET)
+_wx_token_cache: dict = {"token": None, "expires_at": 0.0}
 
 # ── 智谱 GLM 配置 ────────────────────────────────────────────────────────────
 # API Key 在 https://open.bigmodel.cn/usercenter/apikeys 免费申请
@@ -218,6 +230,7 @@ async def health():
         "supabase_enabled": SB_ENABLED,
         "whatsapp_enabled": WA_ENABLED,
         "wechat_enabled": WX_ENABLED,
+        "wechat_push_enabled": WX_PUSH_ENABLED,
     }
 
 
@@ -475,6 +488,44 @@ def _verify_wechat_signature(signature: Optional[str], timestamp: Optional[str],
     return hmac.compare_digest(expected, signature)
 
 
+async def wx_get_access_token() -> Optional[str]:
+    """客服消息接口要用的 access_token，7200 秒有效期，提前 200 秒刷新，内存缓存。"""
+    now = time.time()
+    if _wx_token_cache["token"] and _wx_token_cache["expires_at"] > now:
+        return _wx_token_cache["token"]
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            "https://api.weixin.qq.com/cgi-bin/token",
+            params={"grant_type": "client_credential", "appid": WECHAT_APPID, "secret": WECHAT_APPSECRET},
+        )
+        data = r.json()
+    if "access_token" not in data:
+        logger.error("获取微信 access_token 失败: %s", data)
+        return None
+    _wx_token_cache["token"] = data["access_token"]
+    _wx_token_cache["expires_at"] = now + data.get("expires_in", 7200) - 200
+    return _wx_token_cache["token"]
+
+
+async def wx_send_customer_text(openid: str, content: str) -> None:
+    """客服消息接口：不受被动回复 5 秒限制，但只能在用户最近 48 小时内主动联系过才能推送。"""
+    token = await wx_get_access_token()
+    if not token:
+        return
+    # 微信客服消息单条长度限制 2048 字节，按中文 3 字节/字粗略切成安全长度分段发送
+    chunks = [content[i:i + 600] for i in range(0, len(content), 600)] or [""]
+    async with httpx.AsyncClient() as client:
+        for chunk in chunks:
+            r = await client.post(
+                "https://api.weixin.qq.com/cgi-bin/message/custom/send",
+                params={"access_token": token},
+                json={"touser": openid, "msgtype": "text", "text": {"content": chunk}},
+            )
+            data = r.json()
+            if data.get("errcode", 0) != 0:
+                logger.error("微信客服消息发送失败 errcode=%s errmsg=%s", data.get("errcode"), data.get("errmsg"))
+
+
 @app.get("/webhook/wechat")
 async def wechat_verify(request: Request):
     """公众号后台「消息推送 → 启用」时的一次性服务器验证。"""
@@ -514,6 +565,15 @@ async def wechat_incoming(request: Request):
     if not user_text:
         return Response(content="", media_type="text/plain")
 
+    if WX_PUSH_ENABLED:
+        # 实测 generate_reply() 常规单轮要 ~10 秒，稳定超过被动回复 5 秒上限：被动回复只
+        # 秒回一句"正在想"占位，真正的答案通过客服消息接口异步推送（不受 5 秒限制，
+        # 唯一约束是只能推给 48 小时内联系过的用户，闲聊场景完全够用）。
+        asyncio.create_task(_wechat_async_reply(from_user, user_text))
+        ack = "💭 小巴正在想，几秒后把答案发过来～"
+        return Response(content=_wechat_xml_reply(from_user, to_user, ack), media_type="application/xml")
+
+    # 没配 WECHAT_APPID/SECRET 时的旧同步路径：在 5 秒预算内硬等模型，大概率超时兜底
     history: List[dict] = []
     conversation_id: Optional[str] = None
     if SB_ENABLED:
@@ -562,3 +622,42 @@ async def wechat_incoming(request: Request):
         asyncio.create_task(_persist())
 
     return Response(content=_wechat_xml_reply(from_user, to_user, reply), media_type="application/xml")
+
+
+async def _wechat_async_reply(from_user: str, user_text: str) -> None:
+    """WX_PUSH_ENABLED 时的真实处理：不受 5 秒限制，失败了也只能记日志——被动回复那条
+    占位消息已经发出去了，这里没有别的输出通道能补发一个更友好的错误提示给用户。"""
+    history: List[dict] = []
+    conversation_id: Optional[str] = None
+    if SB_ENABLED:
+        try:
+            conv = await sb_find_conversation_by("wx_openid", from_user)
+            if conv:
+                conversation_id = conv["id"]
+                past = await sb_get_messages(conversation_id)
+                history = [{"role": r["role"], "text": r["content"]} for r in past[-20:]]
+        except httpx.HTTPStatusError as e:
+            logger.warning("微信异步处理：查历史失败，退化成无历史单轮回答 (%s)", e.response.text)
+
+    try:
+        reply = await asyncio.to_thread(generate_reply, user_text, history)
+    except HTTPException as e:
+        logger.error("微信异步处理：模型调用失败 %s", e.detail)
+        reply = "小巴这边刚才出了点小问题，请稍后再问一次～"
+    except Exception:
+        logger.exception("微信异步处理：模型调用出现未预期异常 (openid=%s)", from_user)
+        reply = "小巴这边刚才出了点小问题，请稍后再问一次～"
+
+    if SB_ENABLED:
+        try:
+            cid = conversation_id
+            if not cid:
+                conv = await sb_create_conversation(f"微信 {from_user}", wx_openid=from_user)
+                cid = conv["id"]
+            await sb_add_message(cid, "user", user_text)
+            await sb_add_message(cid, "assistant", reply)
+            await sb_touch_conversation(cid)
+        except httpx.HTTPStatusError as e:
+            logger.error("Supabase 写入失败: %s", e.response.text)
+
+    await wx_send_customer_text(from_user, reply)
