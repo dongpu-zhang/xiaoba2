@@ -26,3 +26,8 @@ create unique index if not exists idx_xiaoba_conversations_wa_phone
 alter table xiaoba_conversations add column if not exists wx_openid text;
 create unique index if not exists idx_xiaoba_conversations_wx_openid
   on xiaoba_conversations(wx_openid) where wx_openid is not null;
+
+-- Telegram 对接：每个 chat_id 绑定一条固定的 conversation
+alter table xiaoba_conversations add column if not exists tg_chat_id text;
+create unique index if not exists idx_xiaoba_conversations_tg_chat_id
+  on xiaoba_conversations(tg_chat_id) where tg_chat_id is not null;

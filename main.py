@@ -47,6 +47,15 @@ WECHAT_APPSECRET = os.environ.get("WECHAT_APPSECRET", "")
 WX_PUSH_ENABLED = bool(WECHAT_APPID and WECHAT_APPSECRET)
 _wx_token_cache: dict = {"token": None, "expires_at": 0.0}
 
+# ── Telegram Bot API 配置 ───────────────────────────────────────────────────
+# @BotFather 创建 bot 拿 token。架构和 WhatsApp 完全一样（JSON webhook + 主动推送 API，
+# 没有微信那种 5 秒被动回复限制），不需要 fire_and_forget 异步兜底这套机制。
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+# setWebhook 时可以带一个 secret_token，Telegram 之后每次回调都会把它放进这个 header，
+# 用来验证请求确实来自 Telegram（不是必须，但配了更安全）
+TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+TG_ENABLED = bool(TELEGRAM_BOT_TOKEN)
+
 # asyncio.create_task() 只持有任务的弱引用——如果没有别的地方强引用这个 task 对象，
 # 事件循环的 gc 随时可能在它跑完之前把它回收掉，表现就是"偶尔/经常悄无声息地不执行"，
 # 不会报错不会留日志。所有"fire and forget"后台任务都要用这个 helper 建，强引用存进
@@ -130,13 +139,18 @@ def _now_iso() -> str:
 
 
 async def sb_create_conversation(
-    title: str, wa_phone: Optional[str] = None, wx_openid: Optional[str] = None
+    title: str,
+    wa_phone: Optional[str] = None,
+    wx_openid: Optional[str] = None,
+    tg_chat_id: Optional[str] = None,
 ) -> dict:
     payload = {"title": title}
     if wa_phone:
         payload["wa_phone"] = wa_phone
     if wx_openid:
         payload["wx_openid"] = wx_openid
+    if tg_chat_id:
+        payload["tg_chat_id"] = tg_chat_id
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{SUPABASE_URL}/rest/v1/xiaoba_conversations",
@@ -244,6 +258,7 @@ async def health():
         "whatsapp_enabled": WA_ENABLED,
         "wechat_enabled": WX_ENABLED,
         "wechat_push_enabled": WX_PUSH_ENABLED,
+        "telegram_enabled": TG_ENABLED,
     }
 
 
@@ -694,3 +709,93 @@ async def _wechat_async_reply(from_user: str, user_text: str) -> None:
             logger.error("Supabase 写入失败: %s", e.response.text)
 
     await wx_send_customer_text(from_user, reply)
+
+
+# ── Telegram Bot API 对接 ────────────────────────────────────────────────────
+# 文档: https://core.telegram.org/bots/api#setwebhook
+# 架构和 WhatsApp 一样：webhook 收到消息 → 同步生成回复 → 调用 sendMessage 主动推送，
+# 没有微信那种 5 秒硬限制，也不需要 IP 白名单。部署好之后要手动调一次 setWebhook
+# 把 Render 的 URL 告诉 Telegram（见本文件末尾的说明，或直接问我）。
+
+async def send_telegram_text(chat_id: str, body: str) -> None:
+    # Telegram 单条消息上限 4096 字符，超出的分段发送
+    chunks = [body[i:i + 4000] for i in range(0, len(body), 4000)] or [""]
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    async with httpx.AsyncClient() as client:
+        for chunk in chunks:
+            r = await client.post(url, json={"chat_id": chat_id, "text": chunk})
+            if r.status_code >= 400:
+                logger.error("Telegram 发送失败 %s: %s", r.status_code, r.text)
+
+
+def _verify_telegram_secret(request: Request) -> bool:
+    if not TELEGRAM_WEBHOOK_SECRET:
+        # 未配置 secret 时不做校验（仅本地/测试阶段应该这样，生产环境建议配置）
+        return True
+    return request.headers.get("x-telegram-bot-api-secret-token") == TELEGRAM_WEBHOOK_SECRET
+
+
+@app.post("/webhook/telegram")
+async def telegram_incoming(request: Request):
+    if not _verify_telegram_secret(request):
+        raise HTTPException(status_code=403, detail="secret_token 不匹配")
+
+    update = json.loads((await request.body()) or b"{}")
+    message = update.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = str(chat.get("id", ""))
+
+    # 没有 message 字段的是编辑消息/频道贴/按钮点击等其它更新类型，确认收到即可，不回复
+    if not chat_id:
+        return JSONResponse({"ok": True})
+
+    if not TG_ENABLED:
+        logger.warning("收到 Telegram 消息，但未配置 TELEGRAM_BOT_TOKEN，无法回复")
+        return JSONResponse({"ok": True})
+
+    if "text" not in message:
+        await send_telegram_text(chat_id, "小巴目前只支持文字消息，请直接发文字问题～")
+        return JSONResponse({"ok": True})
+
+    user_text = message["text"].strip()
+    if not user_text:
+        return JSONResponse({"ok": True})
+
+    # 和 WhatsApp 一样：这里任何一步失败都不能抛异常让 Telegram 重投整个 webhook，
+    # 统一 try/except 兜底一句抱歉文案，始终对 Telegram 返回 200。
+    try:
+        history: List[dict] = []
+        conversation_id = None
+        if SB_ENABLED:
+            try:
+                conv = await sb_find_conversation_by("tg_chat_id", chat_id)
+                if conv:
+                    conversation_id = conv["id"]
+                    past = await sb_get_messages(conversation_id)
+                    history = [{"role": r["role"], "text": r["content"]} for r in past[-20:]]
+            except httpx.HTTPStatusError as e:
+                logger.error("Supabase 查询失败: %s", e.response.text)
+
+        reply = generate_reply(user_text, history)
+
+        if SB_ENABLED:
+            try:
+                if not conversation_id:
+                    title = f"Telegram {chat_id}"
+                    conv = await sb_create_conversation(title, tg_chat_id=chat_id)
+                    conversation_id = conv["id"]
+                await sb_add_message(conversation_id, "user", user_text)
+                await sb_add_message(conversation_id, "assistant", reply)
+                await sb_touch_conversation(conversation_id)
+            except httpx.HTTPStatusError as e:
+                logger.error("Supabase 写入失败: %s", e.response.text)
+
+        await send_telegram_text(chat_id, reply)
+    except Exception:
+        logger.exception("处理 Telegram 消息失败 (chat_id=%s)", chat_id)
+        try:
+            await send_telegram_text(chat_id, "小巴这边刚才出了点小问题，请稍后再问一次～")
+        except Exception:
+            logger.exception("连兜底回复都发送失败 (chat_id=%s)", chat_id)
+
+    return JSONResponse({"ok": True})
