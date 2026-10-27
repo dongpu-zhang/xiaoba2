@@ -1,15 +1,28 @@
 """小巴 2.0 - 《工程本体论》学习助手（智谱 GLM-4-Flash · 免费版 + Supabase 对话持久化）"""
+import hashlib
+import hmac
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from openai import OpenAI
 from pydantic import BaseModel
+
+logger = logging.getLogger("xiaoba2")
+
+# ── WhatsApp Business Cloud API 配置 ────────────────────────────────────────
+WHATSAPP_VERIFY_TOKEN  = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
+WHATSAPP_APP_SECRET    = os.environ.get("WHATSAPP_APP_SECRET", "")
+WHATSAPP_ACCESS_TOKEN  = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_API_VERSION   = os.environ.get("WHATSAPP_API_VERSION", "v21.0")
+WA_ENABLED = bool(WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID)
 
 # ── 智谱 GLM 配置 ────────────────────────────────────────────────────────────
 # API Key 在 https://open.bigmodel.cn/usercenter/apikeys 免费申请
@@ -80,15 +93,30 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-async def sb_create_conversation(title: str) -> dict:
+async def sb_create_conversation(title: str, wa_phone: Optional[str] = None) -> dict:
+    payload = {"title": title}
+    if wa_phone:
+        payload["wa_phone"] = wa_phone
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{SUPABASE_URL}/rest/v1/xiaoba_conversations",
             headers={**SB_HEADERS, "Prefer": "return=representation"},
-            json={"title": title},
+            json=payload,
         )
         r.raise_for_status()
         return r.json()[0]
+
+
+async def sb_find_conversation_by_phone(wa_phone: str) -> Optional[dict]:
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{SUPABASE_URL}/rest/v1/xiaoba_conversations",
+            headers=SB_HEADERS,
+            params={"wa_phone": f"eq.{wa_phone}", "select": "id,title", "limit": "1"},
+        )
+        r.raise_for_status()
+        rows = r.json()
+        return rows[0] if rows else None
 
 
 async def sb_list_conversations() -> list[dict]:
@@ -172,6 +200,7 @@ async def health():
         "model": ZHIPU_MODEL,
         "api_key_set": bool(os.environ.get("ZHIPU_API_KEY")),
         "supabase_enabled": SB_ENABLED,
+        "whatsapp_enabled": WA_ENABLED,
     }
 
 
@@ -218,8 +247,8 @@ class ChatReq(BaseModel):
     conversation_id: Optional[str] = None
 
 
-@app.post("/chat")
-async def chat(req: ChatReq):
+def generate_reply(message: str, history: List[dict]) -> str:
+    """history: [{"role": "user"|"assistant", "text": "..."}]"""
     api_key = os.environ.get("ZHIPU_API_KEY")
     if not api_key:
         raise HTTPException(
@@ -231,10 +260,10 @@ async def chat(req: ChatReq):
     client = OpenAI(api_key=api_key, base_url=ZHIPU_BASE_URL)
 
     messages = [{"role": "system", "content": PREAMBLE}]
-    for m in req.history:
-        role = "user" if m.role == "user" else "assistant"
-        messages.append({"role": role, "content": m.text})
-    messages.append({"role": "user", "content": req.message})
+    for m in history:
+        role = "user" if m.get("role") == "user" else "assistant"
+        messages.append({"role": role, "content": m.get("text", "")})
+    messages.append({"role": "user", "content": message})
 
     try:
         response = client.chat.completions.create(
@@ -244,9 +273,14 @@ async def chat(req: ChatReq):
             top_p=0.75,
             max_tokens=1200,
         )
-        reply = response.choices[0].message.content.strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"智谱 GLM 调用失败: {e}")
+
+
+@app.post("/chat")
+async def chat(req: ChatReq):
+    reply = generate_reply(req.message, [m.model_dump() for m in req.history])
 
     conversation_id = req.conversation_id
     is_new = False
@@ -275,3 +309,125 @@ async def chat(req: ChatReq):
         "is_new": is_new,
         "title": title,
     })
+
+
+# ── WhatsApp Business Cloud API 对接 ─────────────────────────────────────────
+# Meta 文档: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/set-up-webhooks
+
+async def send_whatsapp_text(to: str, body: str) -> None:
+    # WhatsApp 单条文本消息上限 4096 字符，超出的分段发送
+    chunks = [body[i:i + 4000] for i in range(0, len(body), 4000)] or [""]
+    url = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+    async with httpx.AsyncClient() as client:
+        for chunk in chunks:
+            r = await client.post(
+                url,
+                headers=headers,
+                json={
+                    "messaging_product": "whatsapp",
+                    "to": to,
+                    "type": "text",
+                    "text": {"body": chunk},
+                },
+            )
+            if r.status_code >= 400:
+                logger.error("WhatsApp 发送失败 %s: %s", r.status_code, r.text)
+
+
+def _verify_whatsapp_signature(raw_body: bytes, signature_header: Optional[str]) -> bool:
+    if not WHATSAPP_APP_SECRET:
+        # 未配置 app secret 时不做签名校验（仅本地/测试阶段应该这样，生产环境务必配置）
+        return True
+    if not signature_header or not signature_header.startswith("sha256="):
+        return False
+    expected = hmac.new(WHATSAPP_APP_SECRET.encode(), raw_body, hashlib.sha256).hexdigest()
+    got = signature_header.removeprefix("sha256=")
+    return hmac.compare_digest(expected, got)
+
+
+@app.get("/webhook/whatsapp")
+async def whatsapp_verify(request: Request):
+    """Meta 配置 webhook 时的一次性验证握手。"""
+    params = request.query_params
+    mode = params.get("hub.mode")
+    token = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge", "")
+    if mode == "subscribe" and token == WHATSAPP_VERIFY_TOKEN and WHATSAPP_VERIFY_TOKEN:
+        return PlainTextResponse(challenge)
+    raise HTTPException(status_code=403, detail="verify_token 不匹配")
+
+
+@app.post("/webhook/whatsapp")
+async def whatsapp_incoming(request: Request):
+    raw_body = await request.body()
+    if not _verify_whatsapp_signature(raw_body, request.headers.get("x-hub-signature-256")):
+        raise HTTPException(status_code=403, detail="签名校验失败")
+
+    payload = json.loads(raw_body or b"{}")
+
+    try:
+        entry = (payload.get("entry") or [{}])[0]
+        change = (entry.get("changes") or [{}])[0]
+        value = change.get("value") or {}
+        messages = value.get("messages") or []
+    except (IndexError, AttributeError):
+        messages = []
+
+    # 没有 messages 字段的通常是已读/送达状态回调（statuses），直接确认收到即可
+    if not messages:
+        return JSONResponse({"ok": True})
+
+    if not WA_ENABLED:
+        logger.warning("收到 WhatsApp 消息，但未配置 WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID，无法回复")
+        return JSONResponse({"ok": True})
+
+    msg = messages[0]
+    from_phone = msg.get("from", "")
+    if msg.get("type") != "text":
+        await send_whatsapp_text(from_phone, "小巴目前只支持文字消息，请直接发文字问题～")
+        return JSONResponse({"ok": True})
+
+    user_text = (msg.get("text") or {}).get("body", "").strip()
+    if not user_text:
+        return JSONResponse({"ok": True})
+
+    # 下面任何一步失败都不能让这个 handler 抛异常——Meta 对非 2xx 响应会反复重试整个
+    # webhook，一旦问题修复，之前失败的那几条消息会被重新投递并再触发一次回复，造成重复/错乱。
+    # 所以这里统一 try/except，兜底回一句抱歉文案，始终对 Meta 返回 200。
+    try:
+        history: List[dict] = []
+        conversation_id = None
+        if SB_ENABLED:
+            try:
+                conv = await sb_find_conversation_by_phone(from_phone)
+                if conv:
+                    conversation_id = conv["id"]
+                    past = await sb_get_messages(conversation_id)
+                    history = [{"role": r["role"], "text": r["content"]} for r in past[-20:]]
+            except httpx.HTTPStatusError as e:
+                logger.error("Supabase 查询失败: %s", e.response.text)
+
+        reply = generate_reply(user_text, history)
+
+        if SB_ENABLED:
+            try:
+                if not conversation_id:
+                    title = f"WhatsApp {from_phone}"
+                    conv = await sb_create_conversation(title, wa_phone=from_phone)
+                    conversation_id = conv["id"]
+                await sb_add_message(conversation_id, "user", user_text)
+                await sb_add_message(conversation_id, "assistant", reply)
+                await sb_touch_conversation(conversation_id)
+            except httpx.HTTPStatusError as e:
+                logger.error("Supabase 写入失败: %s", e.response.text)
+
+        await send_whatsapp_text(from_phone, reply)
+    except Exception:
+        logger.exception("处理 WhatsApp 消息失败 (from=%s)", from_phone)
+        try:
+            await send_whatsapp_text(from_phone, "小巴这边刚才出了点小问题，请稍后再问一次～")
+        except Exception:
+            logger.exception("连兜底回复都发送失败 (from=%s)", from_phone)
+
+    return JSONResponse({"ok": True})
